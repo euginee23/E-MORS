@@ -352,7 +352,7 @@ For support, please contact the development team or open an issue in the reposit
 ---
 
 <div align="center">
-  <strong>Made with 🧡 for Public Markets</strong>
+  <strong>Built with ❤️ using Laravel 12 and Livewire</strong>
   <br>
   <sub>E-Palengke Market Operations and Revenue System</sub>
 </div>

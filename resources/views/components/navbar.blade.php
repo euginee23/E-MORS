@@ -22,6 +22,8 @@
                     <a href="{{ route('dashboard') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('dashboard') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Dashboard
                     </a>
+
+                    @if(auth()->user()->isAdmin())
                     <a href="{{ route('vendors.index') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('vendors.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Vendors
                     </a>
@@ -34,9 +36,31 @@
                     <a href="{{ route('reports.index') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('reports.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Reports
                     </a>
-                    @if(auth()->user()->isAdmin())
                     <a href="{{ route('users.index') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('users.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Users
+                    </a>
+                    @elseif(auth()->user()->isCollector())
+                    <a href="{{ route('collector.summary') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('collector.summary') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Daily Summary
+                    </a>
+                    <a href="{{ route('collector.collect') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('collector.collect') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Record Collection
+                    </a>
+                    <a href="{{ route('collector.collections') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('collector.collections') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        My Collections
+                    </a>
+                    <a href="{{ route('collector.vendors') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('collector.vendors') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Assigned Vendors
+                    </a>
+                    @elseif(auth()->user()->isVendor())
+                    <a href="{{ route('vendor.stall') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('vendor.stall') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        My Stall
+                    </a>
+                    <a href="{{ route('vendor.payments') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('vendor.payments') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        My Payments
+                    </a>
+                    <a href="{{ route('vendor.announcements') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('vendor.announcements') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Announcements
                     </a>
                     @endif
                 </nav>
@@ -181,6 +205,8 @@
                     <a href="{{ route('dashboard') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('dashboard') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Dashboard
                     </a>
+
+                    @if(auth()->user()->isAdmin())
                     <a href="{{ route('vendors.index') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('vendors.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Vendors
                     </a>
@@ -193,9 +219,31 @@
                     <a href="{{ route('reports.index') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('reports.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Reports
                     </a>
-                    @if(auth()->user()->isAdmin())
                     <a href="{{ route('users.index') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('users.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Users
+                    </a>
+                    @elseif(auth()->user()->isCollector())
+                    <a href="{{ route('collector.summary') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('collector.summary') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Daily Summary
+                    </a>
+                    <a href="{{ route('collector.collect') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('collector.collect') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Record Collection
+                    </a>
+                    <a href="{{ route('collector.collections') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('collector.collections') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        My Collections
+                    </a>
+                    <a href="{{ route('collector.vendors') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('collector.vendors') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Assigned Vendors
+                    </a>
+                    @elseif(auth()->user()->isVendor())
+                    <a href="{{ route('vendor.stall') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('vendor.stall') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        My Stall
+                    </a>
+                    <a href="{{ route('vendor.payments') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('vendor.payments') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        My Payments
+                    </a>
+                    <a href="{{ route('vendor.announcements') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('vendor.announcements') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Announcements
                     </a>
                     @endif
                 </nav>

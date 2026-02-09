@@ -225,21 +225,30 @@
                         {{ __('Manage Users') }}
                     </flux:button>
                     @elseif(auth()->user()->isCollector())
-                    <flux:button variant="subtle" class="w-full justify-start" icon="banknotes" :href="route('collections.index')" wire:navigate>
+                    <flux:button variant="subtle" class="w-full justify-start" icon="plus-circle" :href="route('collector.collect')" wire:navigate>
                         {{ __('Record Collection') }}
                     </flux:button>
-                    <flux:button variant="subtle" class="w-full justify-start" icon="users" :href="route('vendors.index')" wire:navigate>
-                        {{ __('View Vendors') }}
+                    <flux:button variant="subtle" class="w-full justify-start" icon="clipboard-document-list" :href="route('collector.summary')" wire:navigate>
+                        {{ __('Daily Summary') }}
                     </flux:button>
-                    <flux:button variant="subtle" class="w-full justify-start" icon="building-storefront" :href="route('stalls.index')" wire:navigate>
-                        {{ __('View Stalls') }}
+                    <flux:button variant="subtle" class="w-full justify-start" icon="banknotes" :href="route('collector.collections')" wire:navigate>
+                        {{ __('My Collections') }}
+                    </flux:button>
+                    <flux:button variant="subtle" class="w-full justify-start" icon="users" :href="route('collector.vendors')" wire:navigate>
+                        {{ __('Assigned Vendors') }}
                     </flux:button>
                     @else
-                    <flux:button variant="subtle" class="w-full justify-start" icon="banknotes" :href="route('collections.index')" wire:navigate>
-                        {{ __('View Payments') }}
-                    </flux:button>
-                    <flux:button variant="subtle" class="w-full justify-start" icon="building-storefront" :href="route('stalls.index')" wire:navigate>
+                    <flux:button variant="subtle" class="w-full justify-start" icon="building-storefront" :href="route('vendor.stall')" wire:navigate>
                         {{ __('My Stall') }}
+                    </flux:button>
+                    <flux:button variant="subtle" class="w-full justify-start" icon="banknotes" :href="route('vendor.payments')" wire:navigate>
+                        {{ __('My Payments') }}
+                    </flux:button>
+                    <flux:button variant="subtle" class="w-full justify-start" icon="bell" :href="route('vendor.announcements')" wire:navigate>
+                        {{ __('Announcements') }}
+                    </flux:button>
+                    <flux:button variant="subtle" class="w-full justify-start" icon="user-circle" :href="route('vendor.profile')" wire:navigate>
+                        {{ __('Vendor Profile') }}
                     </flux:button>
                     <flux:button variant="subtle" class="w-full justify-start" icon="cog" :href="route('profile.edit')" wire:navigate>
                         {{ __('Account Settings') }}

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -23,6 +24,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
     ];
 
     /**
@@ -47,7 +49,47 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'role' => UserRole::class,
         ];
+    }
+
+    /**
+     * Check if the user has the admin role.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === UserRole::Admin;
+    }
+
+    /**
+     * Check if the user has the collector role.
+     */
+    public function isCollector(): bool
+    {
+        return $this->role === UserRole::Collector;
+    }
+
+    /**
+     * Check if the user has the vendor role.
+     */
+    public function isVendor(): bool
+    {
+        return $this->role === UserRole::Vendor;
+    }
+
+    /**
+     * Check if the user has any of the given roles.
+     */
+    public function hasRole(string|UserRole ...$roles): bool
+    {
+        foreach ($roles as $role) {
+            $role = $role instanceof UserRole ? $role : UserRole::from($role);
+            if ($this->role === $role) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

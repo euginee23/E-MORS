@@ -125,7 +125,7 @@
                             <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-2 sm:pt-4">
                                 @if (Route::has('register'))
                                     <a href="{{ route('register') }}" class="group inline-flex items-center justify-center gap-2 sm:gap-3 px-6 py-3 sm:px-8 sm:py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold text-base sm:text-lg rounded-xl sm:rounded-2xl transition-all hover:scale-105 shadow-xl">
-                                        Start Free Trial
+                                        Get Started
                                         <svg class="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                         </svg>
@@ -490,7 +490,7 @@
                     <div class="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
                         @if (Route::has('register'))
                             <a href="{{ route('register') }}" class="group inline-flex items-center justify-center gap-2 sm:gap-3 px-6 py-4 sm:px-10 sm:py-5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-lg sm:text-xl rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-105">
-                                Get Started Free
+                                Get Started
                                 <svg class="w-5 h-5 sm:w-6 sm:h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                 </svg>

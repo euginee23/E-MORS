@@ -5,7 +5,7 @@
             <div class="space-y-6 lg:space-y-8">
                 <div>
                     <span class="inline-block px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-sm font-bold rounded-full mb-4 lg:mb-6">
-                        🚀 Get Started Today
+                        🚀 Get Started!
                     </span>
                     <h1 class="text-3xl lg:text-4xl xl:text-5xl font-black text-zinc-900 dark:text-white leading-tight mb-3 lg:mb-4">
                         Register Your

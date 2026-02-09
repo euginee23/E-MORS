@@ -43,6 +43,30 @@
 
                 <!-- User Menu & Mobile Toggle -->
                 <div class="flex items-center gap-2 sm:gap-3">
+                    <!-- Theme Toggle -->
+                    <div class="relative" x-data="{ open: false }" @click.away="open = false">
+                        <button @click="open = !open" class="p-2 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer" aria-label="Toggle theme">
+                            <!-- Sun icon (shown in dark mode) -->
+                            <svg x-cloak x-show="$flux.appearance === 'dark' || ($flux.appearance === 'system' && $flux.dark)" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            <!-- Moon icon (shown in light mode) -->
+                            <svg x-cloak x-show="!($flux.appearance === 'dark' || ($flux.appearance === 'system' && $flux.dark))" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                        </button>
+                        <div x-cloak x-show="open" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-1" class="absolute right-0 mt-2 w-40 bg-white dark:bg-zinc-900 border border-orange-100 dark:border-zinc-700 rounded-xl shadow-xl shadow-orange-500/10 py-1 z-50">
+                            <button @click="$flux.appearance = 'light'; open = false" class="flex items-center gap-3 w-full px-4 py-2 text-sm transition-colors cursor-pointer" :class="$flux.appearance === 'light' ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20' : 'text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                Light
+                            </button>
+                            <button @click="$flux.appearance = 'dark'; open = false" class="flex items-center gap-3 w-full px-4 py-2 text-sm transition-colors cursor-pointer" :class="$flux.appearance === 'dark' ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20' : 'text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                                Dark
+                            </button>
+                            <button @click="$flux.appearance = 'system'; open = false" class="flex items-center gap-3 w-full px-4 py-2 text-sm transition-colors cursor-pointer" :class="$flux.appearance === 'system' ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20' : 'text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                System
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- User Dropdown (Desktop) -->
                     <div class="relative hidden sm:block" x-data="{ open: false }" @click.away="open = false">
                         <button @click="open = !open" class="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-orange-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer">
@@ -53,7 +77,7 @@
                             <svg class="w-4 h-4 text-zinc-400 transition-transform" :class="{ 'rotate-180': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                         </button>
 
-                        <div x-show="open" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-1" class="absolute right-0 mt-2 w-64 bg-white dark:bg-zinc-900 border border-orange-100 dark:border-zinc-700 rounded-2xl shadow-xl shadow-orange-500/10 py-2 z-50" style="display: none;">
+                        <div x-cloak x-show="open" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-1" class="absolute right-0 mt-2 w-64 bg-white dark:bg-zinc-900 border border-orange-100 dark:border-zinc-700 rounded-2xl shadow-xl shadow-orange-500/10 py-2 z-50">
                             <!-- User Info -->
                             <div class="px-4 py-3 border-b border-orange-100 dark:border-zinc-700">
                                 <p class="text-sm font-semibold text-zinc-900 dark:text-white">{{ auth()->user()->name }}</p>
@@ -100,6 +124,28 @@
 
                 <!-- Guest Auth Buttons -->
                 <div class="flex items-center gap-2 sm:gap-3">
+                    <!-- Theme Toggle (Guest) -->
+                    <div class="relative" x-data="{ open: false }" @click.away="open = false">
+                        <button @click="open = !open" class="p-2 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer" aria-label="Toggle theme">
+                            <svg x-cloak x-show="$flux.appearance === 'dark' || ($flux.appearance === 'system' && $flux.dark)" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            <svg x-cloak x-show="!($flux.appearance === 'dark' || ($flux.appearance === 'system' && $flux.dark))" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                        </button>
+                        <div x-cloak x-show="open" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-1" class="absolute right-0 mt-2 w-40 bg-white dark:bg-zinc-900 border border-orange-100 dark:border-zinc-700 rounded-xl shadow-xl shadow-orange-500/10 py-1 z-50">
+                            <button @click="$flux.appearance = 'light'; open = false" class="flex items-center gap-3 w-full px-4 py-2 text-sm transition-colors cursor-pointer" :class="$flux.appearance === 'light' ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20' : 'text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                Light
+                            </button>
+                            <button @click="$flux.appearance = 'dark'; open = false" class="flex items-center gap-3 w-full px-4 py-2 text-sm transition-colors cursor-pointer" :class="$flux.appearance === 'dark' ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20' : 'text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                                Dark
+                            </button>
+                            <button @click="$flux.appearance = 'system'; open = false" class="flex items-center gap-3 w-full px-4 py-2 text-sm transition-colors cursor-pointer" :class="$flux.appearance === 'system' ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20' : 'text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800'">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                System
+                            </button>
+                        </div>
+                    </div>
+
                     @if (Route::has('login'))
                         <a href="{{ route('login') }}" class="hidden sm:inline-flex px-4 py-2.5 text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 font-medium transition-colors">
                             Sign In
@@ -167,6 +213,24 @@
                     <a href="{{ route('profile.edit') }}" class="px-4 py-3 text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors">
                         Settings
                     </a>
+                    <!-- Mobile Theme Toggle -->
+                    <div class="px-4 py-2" x-data>
+                        <p class="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">Theme</p>
+                        <div class="flex gap-1 rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1">
+                            <button @click="$flux.appearance = 'light'" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer" :class="$flux.appearance === 'light' ? 'bg-white dark:bg-zinc-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                Light
+                            </button>
+                            <button @click="$flux.appearance = 'dark'" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer" :class="$flux.appearance === 'dark' ? 'bg-white dark:bg-zinc-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                                Dark
+                            </button>
+                            <button @click="$flux.appearance = 'system'" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer" :class="$flux.appearance === 'system' ? 'bg-white dark:bg-zinc-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                System
+                            </button>
+                        </div>
+                    </div>
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
                         <button type="submit" class="w-full text-left px-4 py-3 text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl font-medium transition-colors cursor-pointer">
@@ -183,6 +247,24 @@
                     <a href="{{ url('/') }}#modules" class="px-4 py-3 text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors">Modules</a>
                     <a href="{{ url('/') }}#benefits" class="px-4 py-3 text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors">Benefits</a>
                 </nav>
+                <!-- Mobile Theme Toggle (Guest) -->
+                <div class="px-4 py-2 pt-4 mt-4 border-t border-orange-100 dark:border-zinc-800" x-data>
+                    <p class="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">Theme</p>
+                    <div class="flex gap-1 rounded-xl bg-zinc-100 dark:bg-zinc-800 p-1">
+                        <button @click="$flux.appearance = 'light'" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer" :class="$flux.appearance === 'light' ? 'bg-white dark:bg-zinc-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            Light
+                        </button>
+                        <button @click="$flux.appearance = 'dark'" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer" :class="$flux.appearance === 'dark' ? 'bg-white dark:bg-zinc-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                            Dark
+                        </button>
+                        <button @click="$flux.appearance = 'system'" class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer" :class="$flux.appearance === 'system' ? 'bg-white dark:bg-zinc-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                            System
+                        </button>
+                    </div>
+                </div>
                 @guest
                     <div class="flex flex-col gap-2 pt-4 mt-4 border-t border-orange-100 dark:border-zinc-800">
                         <a href="{{ route('login') }}" class="px-4 py-3 text-center text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 font-medium border border-zinc-200 dark:border-zinc-700 rounded-xl transition-colors">
@@ -201,17 +283,21 @@
 </header>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    function initMobileMenu() {
         const appBtn = document.getElementById('appMobileMenuBtn');
         const appMenu = document.getElementById('appMobileMenu');
         const guestBtn = document.getElementById('guestMobileMenuBtn');
         const guestMenu = document.getElementById('guestMobileMenu');
 
         if (appBtn && appMenu) {
-            appBtn.addEventListener('click', () => appMenu.classList.toggle('hidden'));
+            appBtn.replaceWith(appBtn.cloneNode(true));
+            document.getElementById('appMobileMenuBtn').addEventListener('click', () => appMenu.classList.toggle('hidden'));
         }
         if (guestBtn && guestMenu) {
-            guestBtn.addEventListener('click', () => guestMenu.classList.toggle('hidden'));
+            guestBtn.replaceWith(guestBtn.cloneNode(true));
+            document.getElementById('guestMobileMenuBtn').addEventListener('click', () => guestMenu.classList.toggle('hidden'));
         }
-    });
+    }
+    document.addEventListener('DOMContentLoaded', initMobileMenu);
+    document.addEventListener('livewire:navigated', initMobileMenu);
 </script>

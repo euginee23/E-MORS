@@ -52,7 +52,7 @@
                     <flux:heading size="lg">{{ __('Monthly Revenue Trend') }}</flux:heading>
                 </div>
                 <div class="p-6">
-                    <div class="flex h-48 items-end gap-2">
+                    <div class="flex h-48 gap-2">
                         @php
                             $months = [
                                 ['month' => 'Aug', 'amount' => 980000, 'max' => 1300000],
@@ -65,9 +65,11 @@
                             ];
                         @endphp
                         @foreach($months as $m)
-                        <div class="flex flex-1 flex-col items-center gap-1">
-                            <div class="w-full rounded-t bg-blue-500/80 transition-all hover:bg-blue-500" style="height: {{ round($m['amount'] / $m['max'] * 100) }}%"></div>
-                            <flux:text class="text-xs text-zinc-500">{{ $m['month'] }}</flux:text>
+                        <div class="flex flex-1 flex-col items-center">
+                            <div class="w-full flex-1 flex items-end">
+                                <div class="w-full rounded-t bg-blue-500/80 transition-all hover:bg-blue-500" style="height: {{ round($m['amount'] / $m['max'] * 100) }}%"></div>
+                            </div>
+                            <flux:text class="mt-1 shrink-0 text-xs text-zinc-500">{{ $m['month'] }}</flux:text>
                         </div>
                         @endforeach
                     </div>

@@ -1,11 +1,7 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>E-MORS - E-Palengke Market Operations and Revenue System</title>
-        <link rel="icon" href="/favicon.ico" sizes="any">
-        @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @include('partials.head')
     </head>
     <body class="antialiased bg-orange-50 dark:bg-zinc-950 min-h-screen">
         
@@ -16,85 +12,7 @@
         </div>
 
         <div class="relative">
-            <!-- Top Bar -->
-            <header class="border-b border-orange-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-lg sticky top-0 z-50">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div class="flex items-center justify-between h-16 lg:h-20">
-                        <!-- Logo -->
-                        <div class="flex items-center gap-2 sm:gap-4">
-                            <div class="relative">
-                                <div class="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 rounded-xl sm:rounded-2xl rotate-3 shadow-lg"></div>
-                                <div class="absolute inset-0 w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-600 via-amber-600 to-yellow-600 rounded-xl sm:rounded-2xl -rotate-3 flex items-center justify-center">
-                                    <span class="text-white font-black text-sm sm:text-lg">EP</span>
-                                </div>
-                            </div>
-                            <div>
-                                <h1 class="text-lg sm:text-2xl font-black text-zinc-900 dark:text-white tracking-tight">E-MORS</h1>
-                                <p class="text-[10px] sm:text-xs text-orange-600 dark:text-orange-400 font-medium tracking-widest uppercase">E-Palengke System</p>
-                            </div>
-                        </div>
-
-                        <!-- Navigation -->
-                        <nav class="hidden md:flex items-center gap-6 lg:gap-8">
-                            <a href="#about" class="text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 font-medium transition-colors">About</a>
-                            <a href="#modules" class="text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 font-medium transition-colors">Modules</a>
-                            <a href="#benefits" class="text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 font-medium transition-colors">Benefits</a>
-                        </nav>
-
-                        <!-- Auth + Mobile Menu -->
-                        <div class="flex items-center gap-2 sm:gap-3">
-                            @if (Route::has('login'))
-                                @auth
-                                    <a href="{{ url('/dashboard') }}" class="px-3 py-2 sm:px-6 sm:py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40">
-                                        Dashboard
-                                    </a>
-                                @else
-                                    <a href="{{ route('login') }}" class="hidden sm:inline-flex px-4 py-2.5 text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 font-medium transition-colors">
-                                        Sign In
-                                    </a>
-                                    @if (Route::has('register'))
-                                        <a href="{{ route('register') }}" class="hidden sm:inline-flex px-4 lg:px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-sm lg:text-base font-semibold rounded-xl transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:-translate-y-0.5">
-                                            Register
-                                        </a>
-                                    @endif
-                                @endauth
-                            @endif
-
-                            <!-- Mobile Menu Button -->
-                            <button 
-                                id="mobileMenuBtn"
-                                class="md:hidden p-2 text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
-                                aria-label="Toggle menu"
-                            >
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Mobile Menu -->
-                    <div id="mobileMenu" class="hidden md:hidden pb-4 border-t border-orange-100 dark:border-zinc-800 mt-2">
-                        <nav class="flex flex-col gap-1 pt-4">
-                            <a href="#about" class="px-4 py-3 text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors">About</a>
-                            <a href="#modules" class="px-4 py-3 text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors">Modules</a>
-                            <a href="#benefits" class="px-4 py-3 text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors">Benefits</a>
-                        </nav>
-                        @guest
-                            <div class="flex flex-col gap-2 pt-4 mt-4 border-t border-orange-100 dark:border-zinc-800">
-                                <a href="{{ route('login') }}" class="px-4 py-3 text-center text-zinc-700 dark:text-zinc-300 hover:text-orange-600 dark:hover:text-orange-400 font-medium border border-zinc-200 dark:border-zinc-700 rounded-xl transition-colors">
-                                    Sign In
-                                </a>
-                                @if (Route::has('register'))
-                                    <a href="{{ route('register') }}" class="px-4 py-3 text-center bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold rounded-xl transition-all shadow-lg shadow-orange-500/25">
-                                        Register Your Market
-                                    </a>
-                                @endif
-                            </div>
-                        @endguest
-                    </div>
-                </div>
-            </header>
+            <x-navbar />
 
             <!-- Hero Section - Split Design -->
             <section class="py-10 sm:py-16 lg:py-24">
@@ -518,38 +436,19 @@
         </button>
 
         <script>
-            // Mobile menu toggle
-            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-            const mobileMenu = document.getElementById('mobileMenu');
-            
-            if (mobileMenuBtn && mobileMenu) {
-                mobileMenuBtn.addEventListener('click', () => {
-                    mobileMenu.classList.toggle('hidden');
-                    // Toggle icon between hamburger and X
-                    const svg = mobileMenuBtn.querySelector('svg');
-                    if (mobileMenu.classList.contains('hidden')) {
-                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
-                    } else {
-                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />';
-                    }
-                });
-
-                // Close mobile menu when clicking on a link
-                mobileMenu.querySelectorAll('a').forEach(link => {
-                    link.addEventListener('click', () => {
-                        mobileMenu.classList.add('hidden');
-                        const svg = mobileMenuBtn.querySelector('svg');
-                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />';
-                    });
-                });
-            }
-
-            // Smooth scroll for anchor links
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            // Smooth scroll for anchor links (handles both "#id" and full-url "http://...#id" formats)
+            document.querySelectorAll('a[href*="#"]').forEach(anchor => {
                 anchor.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const target = document.querySelector(this.getAttribute('href'));
+                    const href = this.getAttribute('href');
+                    const hashIndex = href.indexOf('#');
+                    if (hashIndex === -1) return;
+                    const hash = href.substring(hashIndex);
+                    // Only smooth-scroll if we're on the same page
+                    const urlBeforeHash = href.substring(0, hashIndex);
+                    if (urlBeforeHash && urlBeforeHash !== window.location.origin + '/' && urlBeforeHash !== window.location.origin && urlBeforeHash !== window.location.href.split('#')[0]) return;
+                    const target = document.querySelector(hash);
                     if (target) {
+                        e.preventDefault();
                         const navHeight = document.querySelector('header').offsetHeight;
                         const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - navHeight;
                         window.scrollTo({ top: targetPosition, behavior: 'smooth' });
@@ -574,5 +473,6 @@
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             });
         </script>
+        @fluxScripts
     </body>
 </html>

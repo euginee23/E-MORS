@@ -11,11 +11,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Admin & management routes (admin only)
     Route::middleware('role:admin')->group(function () {
-        Route::view('vendors', 'pages.vendors.index')->name('vendors.index');
-        Route::view('stalls', 'pages.stalls.index')->name('stalls.index');
-        Route::view('collections', 'pages.collections.index')->name('collections.index');
-        Route::view('reports', 'pages.reports.index')->name('reports.index');
-        Route::view('users', 'pages.users.index')->name('users.index');
+        Route::livewire('vendors', 'pages::vendors.index')->name('vendors.index');
+        Route::livewire('stalls', 'pages::stalls.index')->name('stalls.index');
+        Route::livewire('collections', 'pages::collections.index')->name('collections.index');
+        Route::livewire('collectors', 'pages::collectors.index')->name('collectors.index');
+        Route::livewire('reports', 'pages::reports.index')->name('reports.index');
+        Route::livewire('users', 'pages::users.index')->name('users.index');
     });
 
     // Collector routes

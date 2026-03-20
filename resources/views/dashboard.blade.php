@@ -1,14 +1,62 @@
+@php
+    use App\Enums\PaymentStatus;
+    use App\Models\Collection;
+    use App\Models\Vendor;
+    use App\Models\Stall;
+
+    $user = auth()->user();
+    $marketId = $user->market_id;
+
+    if ($user->isAdmin() || $user->isCollector()) {
+        $totalVendors = Vendor::where('market_id', $marketId)->count();
+        $totalStalls = Stall::where('market_id', $marketId)->count();
+        $occupiedStalls = Stall::where('market_id', $marketId)->where('status', 'occupied')->count();
+        $occupancyRate = $totalStalls > 0 ? round(($occupiedStalls / $totalStalls) * 100) : 0;
+
+        $todayCollections = Collection::where('market_id', $marketId)
+            ->where('status', PaymentStatus::Paid)
+            ->whereDate('payment_date', today())
+            ->sum('amount');
+
+        $monthlyRevenue = Collection::where('market_id', $marketId)
+            ->where('status', PaymentStatus::Paid)
+            ->whereMonth('payment_date', now()->month)
+            ->whereYear('payment_date', now()->year)
+            ->sum('amount');
+
+        $recentCollections = Collection::where('market_id', $marketId)
+            ->with(['vendor', 'stall', 'collector'])
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get();
+
+        $sectionStats = Stall::where('market_id', $marketId)
+            ->selectRaw("section, count(*) as total, sum(case when status = 'occupied' then 1 else 0 end) as occupied")
+            ->groupBy('section')
+            ->orderBy('section')
+            ->get();
+    }
+
+    if ($user->isVendor()) {
+        $myVendor = $user->vendor;
+        $myStall = $myVendor?->stall;
+        $lastPayment = $myVendor ? Collection::where('vendor_id', $myVendor->id)
+            ->where('status', PaymentStatus::Paid)->latest('payment_date')->first() : null;
+        $myCollections = $myVendor ? Collection::where('vendor_id', $myVendor->id)
+            ->with(['stall'])->orderBy('created_at', 'desc')->limit(5)->get() : collect();
+    }
+@endphp
 <x-layouts::app :title="__('Dashboard')">
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         {{-- Welcome Banner --}}
         <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
             <div class="flex items-center justify-between">
                 <div>
-                    <flux:heading size="xl">{{ __('Welcome back, :name', ['name' => auth()->user()->name]) }}</flux:heading>
+                    <flux:heading size="xl">{{ __('Welcome back, :name', ['name' => $user->name]) }}</flux:heading>
                     <flux:subheading class="mt-1">
-                        @if(auth()->user()->isAdmin())
+                        @if($user->isAdmin())
                             {{ __('Here\'s an overview of your market operations today.') }}
-                        @elseif(auth()->user()->isCollector())
+                        @elseif($user->isCollector())
                             {{ __('Here\'s your collection summary for today.') }}
                         @else
                             {{ __('View your stall information and payment status.') }}
@@ -23,7 +71,7 @@
 
         {{-- Stats Cards --}}
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            @if(auth()->user()->isAdmin() || auth()->user()->isCollector())
+            @if($user->isAdmin() || $user->isCollector())
             {{-- Total Vendors --}}
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="flex items-center justify-between">
@@ -33,10 +81,7 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">248</flux:heading>
-                    <flux:text class="mt-1 text-xs text-green-600 dark:text-green-400">
-                        <flux:icon.arrow-trending-up class="mr-1 inline size-3" /> +12 this month
-                    </flux:text>
+                    <flux:heading size="xl" class="text-2xl font-bold">{{ $totalVendors }}</flux:heading>
                 </div>
             </div>
 
@@ -49,9 +94,9 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">320</flux:heading>
+                    <flux:heading size="xl" class="text-2xl font-bold">{{ $totalStalls }}</flux:heading>
                     <flux:text class="mt-1 text-xs text-zinc-500">
-                        92% occupied
+                        {{ $occupancyRate }}% occupied
                     </flux:text>
                 </div>
             </div>
@@ -65,10 +110,7 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">₱ 45,280</flux:heading>
-                    <flux:text class="mt-1 text-xs text-green-600 dark:text-green-400">
-                        <flux:icon.arrow-trending-up class="mr-1 inline size-3" /> +8.2% vs yesterday
-                    </flux:text>
+                    <flux:heading size="xl" class="text-2xl font-bold">₱ {{ number_format($todayCollections, 0) }}</flux:heading>
                 </div>
             </div>
 
@@ -81,15 +123,12 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">₱ 1.2M</flux:heading>
-                    <flux:text class="mt-1 text-xs text-green-600 dark:text-green-400">
-                        <flux:icon.arrow-trending-up class="mr-1 inline size-3" /> +15% vs last month
-                    </flux:text>
+                    <flux:heading size="xl" class="text-2xl font-bold">₱ {{ number_format($monthlyRevenue, 0) }}</flux:heading>
                 </div>
             </div>
             @endif
 
-            @if(auth()->user()->isVendor())
+            @if($user->isVendor())
             {{-- My Stall --}}
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="flex items-center justify-between">
@@ -99,8 +138,10 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">A-12</flux:heading>
-                    <flux:text class="mt-1 text-xs text-zinc-500">Section A, Ground Floor</flux:text>
+                    <flux:heading size="xl" class="text-2xl font-bold">{{ $myStall?->stall_number ?? __('Unassigned') }}</flux:heading>
+                    @if($myStall)
+                    <flux:text class="mt-1 text-xs text-zinc-500">Section {{ $myStall->section }}</flux:text>
+                    @endif
                 </div>
             </div>
 
@@ -113,12 +154,16 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:badge color="lime" size="sm">Paid</flux:badge>
-                    <flux:text class="mt-1 text-xs text-zinc-500">Last payment: {{ now()->subDays(3)->format('M j, Y') }}</flux:text>
+                    @if($lastPayment)
+                    <flux:badge color="{{ $lastPayment->status->color() }}" size="sm">{{ $lastPayment->status->label() }}</flux:badge>
+                    <flux:text class="mt-1 text-xs text-zinc-500">Last payment: {{ $lastPayment->payment_date->format('M j, Y') }}</flux:text>
+                    @else
+                    <flux:badge color="yellow" size="sm">{{ __('No payments') }}</flux:badge>
+                    @endif
                 </div>
             </div>
 
-            {{-- Monthly Fees --}}
+            {{-- Monthly Fee --}}
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="flex items-center justify-between">
                     <flux:text class="text-sm font-medium">{{ __('Monthly Fee') }}</flux:text>
@@ -127,7 +172,7 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">₱ 3,500</flux:heading>
+                    <flux:heading size="xl" class="text-2xl font-bold">₱ {{ number_format($myStall?->monthly_rate ?? 0, 0) }}</flux:heading>
                     <flux:text class="mt-1 text-xs text-zinc-500">Due: {{ now()->endOfMonth()->format('M j, Y') }}</flux:text>
                 </div>
             </div>
@@ -141,8 +186,14 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:badge color="lime" size="sm">Active</flux:badge>
-                    <flux:text class="mt-1 text-xs text-zinc-500">Expires: Dec 31, 2026</flux:text>
+                    @if($myVendor)
+                    <flux:badge color="{{ $myVendor->permit_status->color() }}" size="sm">{{ $myVendor->permit_status->label() }}</flux:badge>
+                    @if($myVendor->permit_expiry)
+                    <flux:text class="mt-1 text-xs text-zinc-500">Expires: {{ $myVendor->permit_expiry->format('M j, Y') }}</flux:text>
+                    @endif
+                    @else
+                    <flux:badge color="zinc" size="sm">{{ __('N/A') }}</flux:badge>
+                    @endif
                 </div>
             </div>
             @endif
@@ -154,7 +205,7 @@
             <div class="lg:col-span-2 rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="border-b border-orange-100 px-6 py-4 dark:border-zinc-700">
                     <flux:heading size="lg">
-                        @if(auth()->user()->isVendor())
+                        @if($user->isVendor())
                             {{ __('Payment History') }}
                         @else
                             {{ __('Recent Collections') }}
@@ -166,7 +217,7 @@
                         <thead>
                             <tr class="border-b border-orange-100 text-left dark:border-zinc-700">
                                 <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Date') }}</th>
-                                @if(!auth()->user()->isVendor())
+                                @if(!$user->isVendor())
                                 <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Vendor') }}</th>
                                 @endif
                                 <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stall') }}</th>
@@ -176,27 +227,25 @@
                         </thead>
                         <tbody class="divide-y divide-orange-100 dark:divide-zinc-700">
                             @php
-                                $sampleData = [
-                                    ['date' => now()->format('M j'), 'vendor' => 'Maria Santos', 'stall' => 'A-12', 'amount' => '₱ 150', 'status' => 'Paid'],
-                                    ['date' => now()->format('M j'), 'vendor' => 'Juan Cruz', 'stall' => 'B-05', 'amount' => '₱ 200', 'status' => 'Paid'],
-                                    ['date' => now()->format('M j'), 'vendor' => 'Ana Reyes', 'stall' => 'C-08', 'amount' => '₱ 175', 'status' => 'Pending'],
-                                    ['date' => now()->subDay()->format('M j'), 'vendor' => 'Pedro Lim', 'stall' => 'A-03', 'amount' => '₱ 150', 'status' => 'Paid'],
-                                    ['date' => now()->subDay()->format('M j'), 'vendor' => 'Rosa Garcia', 'stall' => 'D-11', 'amount' => '₱ 250', 'status' => 'Paid'],
-                                ];
+                                $rows = $user->isVendor() ? $myCollections : $recentCollections;
                             @endphp
-                            @foreach($sampleData as $row)
+                            @forelse($rows as $row)
                             <tr class="hover:bg-orange-50/50 dark:hover:bg-zinc-800/50">
-                                <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $row['date'] }}</td>
-                                @if(!auth()->user()->isVendor())
-                                <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $row['vendor'] }}</td>
+                                <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $row->payment_date->format('M j') }}</td>
+                                @if(!$user->isVendor())
+                                <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $row->vendor?->contact_name ?? '—' }}</td>
                                 @endif
-                                <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $row['stall'] }}</td>
-                                <td class="px-6 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ $row['amount'] }}</td>
+                                <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $row->stall?->stall_number ?? '—' }}</td>
+                                <td class="px-6 py-3 font-medium text-zinc-900 dark:text-zinc-100">₱ {{ number_format($row->amount, 0) }}</td>
                                 <td class="px-6 py-3">
-                                    <flux:badge :color="$row['status'] === 'Paid' ? 'lime' : 'yellow'" size="sm">{{ $row['status'] }}</flux:badge>
+                                    <flux:badge :color="$row->status->color()" size="sm">{{ $row->status->label() }}</flux:badge>
                                 </td>
                             </tr>
-                            @endforeach
+                            @empty
+                            <tr>
+                                <td colspan="{{ $user->isVendor() ? 4 : 5 }}" class="px-6 py-8 text-center text-zinc-500">{{ __('No recent collections.') }}</td>
+                            </tr>
+                            @endforelse
                         </tbody>
                     </table>
                 </div>
@@ -208,7 +257,7 @@
                     <flux:heading size="lg">{{ __('Quick Actions') }}</flux:heading>
                 </div>
                 <div class="flex flex-col gap-2 p-4">
-                    @if(auth()->user()->isAdmin())
+                    @if($user->isAdmin())
                     <flux:button variant="subtle" class="w-full justify-start" icon="user-plus" :href="route('vendors.index')" wire:navigate>
                         {{ __('Add New Vendor') }}
                     </flux:button>
@@ -224,7 +273,7 @@
                     <flux:button variant="subtle" class="w-full justify-start" icon="shield-check" :href="route('users.index')" wire:navigate>
                         {{ __('Manage Users') }}
                     </flux:button>
-                    @elseif(auth()->user()->isCollector())
+                    @elseif($user->isCollector())
                     <flux:button variant="subtle" class="w-full justify-start" icon="plus-circle" :href="route('collector.collect')" wire:navigate>
                         {{ __('Record Collection') }}
                     </flux:button>
@@ -259,7 +308,7 @@
         </div>
 
         {{-- Stall Occupancy Overview (Admin only) --}}
-        @if(auth()->user()->isAdmin())
+        @if($user->isAdmin())
         <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
             <div class="border-b border-orange-100 px-6 py-4 dark:border-zinc-700">
                 <div class="flex items-center justify-between">
@@ -271,26 +320,19 @@
             </div>
             <div class="p-6">
                 <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    @php
-                        $sections = [
-                            ['name' => 'Section A', 'total' => 80, 'occupied' => 76, 'color' => 'emerald'],
-                            ['name' => 'Section B', 'total' => 80, 'occupied' => 72, 'color' => 'blue'],
-                            ['name' => 'Section C', 'total' => 80, 'occupied' => 74, 'color' => 'purple'],
-                            ['name' => 'Section D', 'total' => 80, 'occupied' => 73, 'color' => 'amber'],
-                        ];
-                    @endphp
-                    @foreach($sections as $section)
+                    @foreach($sectionStats as $section)
                     <div class="rounded-xl border border-orange-100 p-4 dark:border-zinc-700">
-                        <flux:text class="text-sm font-medium">{{ $section['name'] }}</flux:text>
+                        <flux:text class="text-sm font-medium">Section {{ $section->section }}</flux:text>
                         <div class="mt-2">
                             <div class="flex items-baseline gap-1">
-                                <span class="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{{ $section['occupied'] }}</span>
-                                <span class="text-sm text-zinc-500">/ {{ $section['total'] }}</span>
+                                <span class="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{{ $section->occupied }}</span>
+                                <span class="text-sm text-zinc-500">/ {{ $section->total }}</span>
                             </div>
+                            @php $pct = $section->total > 0 ? round($section->occupied / $section->total * 100) : 0; @endphp
                             <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                                <div class="h-full rounded-full bg-{{ $section['color'] }}-500" style="width: {{ round($section['occupied'] / $section['total'] * 100) }}%"></div>
+                                <div class="h-full rounded-full bg-emerald-500" style="width: {{ $pct }}%"></div>
                             </div>
-                            <flux:text class="mt-1 text-xs text-zinc-500">{{ round($section['occupied'] / $section['total'] * 100) }}% occupied</flux:text>
+                            <flux:text class="mt-1 text-xs text-zinc-500">{{ $pct }}% occupied</flux:text>
                         </div>
                     </div>
                     @endforeach

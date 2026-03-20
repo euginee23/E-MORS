@@ -79,7 +79,7 @@
             <!-- Session Status -->
             <x-auth-session-status class="text-center mb-6" :status="session('status')" />
 
-            <form method="POST" action="{{ route('register.store') }}" class="space-y-5 lg:space-y-6">
+            <form method="POST" action="{{ route('register') }}" class="space-y-5 lg:space-y-6">
                 @csrf
 
                 <!-- Market Information Section -->

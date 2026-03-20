@@ -5,6 +5,9 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
@@ -25,6 +28,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'market_id',
     ];
 
     /**
@@ -51,6 +55,30 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role' => UserRole::class,
         ];
+    }
+
+    /**
+     * Get the market this user belongs to.
+     */
+    public function market(): BelongsTo
+    {
+        return $this->belongsTo(Market::class);
+    }
+
+    /**
+     * Get the vendor profile linked to this user.
+     */
+    public function vendor(): HasOne
+    {
+        return $this->hasOne(Vendor::class);
+    }
+
+    /**
+     * Get collections recorded by this user (as collector).
+     */
+    public function collectedPayments(): HasMany
+    {
+        return $this->hasMany(Collection::class, 'collector_id');
     }
 
     /**

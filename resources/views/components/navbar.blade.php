@@ -33,6 +33,9 @@
                     <a href="{{ route('collections.index') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('collections.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Collections
                     </a>
+                    <a href="{{ route('collectors.index') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('collectors.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Collectors
+                    </a>
                     <a href="{{ route('reports.index') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('reports.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Reports
                     </a>
@@ -215,6 +218,9 @@
                     </a>
                     <a href="{{ route('collections.index') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('collections.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Collections
+                    </a>
+                    <a href="{{ route('collectors.index') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('collectors.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Collectors
                     </a>
                     <a href="{{ route('reports.index') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('reports.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Reports

@@ -274,7 +274,6 @@ new class extends Component {
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Email') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Role') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Status') }}</th>
-                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('2FA') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Created') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Actions') }}</th>
                         </tr>
@@ -304,13 +303,6 @@ new class extends Component {
                                 <flux:badge :color="$user->email_verified_at ? 'lime' : 'zinc'" size="sm">
                                     {{ $user->email_verified_at ? 'Active' : 'Unverified' }}
                                 </flux:badge>
-                            </td>
-                            <td class="px-6 py-3">
-                                @if($user->two_factor_confirmed_at)
-                                    <flux:icon.shield-check class="size-5 text-emerald-500" />
-                                @else
-                                    <flux:icon.shield-exclamation class="size-5 text-zinc-400" />
-                                @endif
                             </td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $user->created_at->format('M j, Y') }}</td>
                             <td class="px-6 py-3">

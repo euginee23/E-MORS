@@ -12,6 +12,8 @@ test('new users can register', function () {
         'email' => 'test@example.com',
         'password' => 'password',
         'password_confirmation' => 'password',
+        'market_name' => 'Test Market',
+        'market_address' => '123 Test Street',
     ]);
 
     $response->assertSessionHasNoErrors()

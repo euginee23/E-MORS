@@ -1,7 +1,36 @@
 <?php
 
+use App\Enums\PermitStatus;
 use App\Enums\UserRole;
+use App\Models\Market;
+use App\Models\Stall;
 use App\Models\User;
+use App\Models\Vendor;
+
+/**
+ * Create a vendor user that passes the vendor-approved middleware
+ * (active permit status + assigned stall).
+ */
+function createApprovedVendor(): User
+{
+    $user = User::factory()->create(['role' => UserRole::Vendor]);
+    $market = Market::create(['name' => 'Test Market', 'address' => '123 Test St']);
+    $vendorProfile = Vendor::create([
+        'market_id' => $market->id,
+        'user_id' => $user->id,
+        'business_name' => 'Test Business',
+        'contact_name' => 'Test Contact',
+        'permit_status' => PermitStatus::Active,
+    ]);
+    Stall::create([
+        'market_id' => $market->id,
+        'vendor_id' => $vendorProfile->id,
+        'stall_number' => 'A1',
+        'section' => 'A',
+    ]);
+
+    return $user;
+}
 
 // ─── Admin Route Access ───
 
@@ -18,7 +47,7 @@ test('admin can access admin pages', function () {
 });
 
 test('vendor cannot access admin pages', function () {
-    $vendor = User::factory()->create(['role' => UserRole::Vendor]);
+    $vendor = createApprovedVendor();
 
     $this->actingAs($vendor);
 
@@ -44,7 +73,7 @@ test('collector cannot access admin pages', function () {
 // ─── Vendor Route Access ───
 
 test('vendor can access vendor pages', function () {
-    $vendor = User::factory()->create(['role' => UserRole::Vendor]);
+    $vendor = createApprovedVendor();
 
     $this->actingAs($vendor);
 
@@ -101,7 +130,7 @@ test('admin cannot access collector pages', function () {
 });
 
 test('vendor cannot access collector pages', function () {
-    $vendor = User::factory()->create(['role' => UserRole::Vendor]);
+    $vendor = createApprovedVendor();
 
     $this->actingAs($vendor);
 

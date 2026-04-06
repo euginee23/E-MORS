@@ -22,10 +22,7 @@ new class extends Component {
     public string $formCategory = 'general';
     public bool $formPublished = true;
 
-    // Delete
-    public bool $showDeleteModal = false;
-    public ?int $deletingId = null;
-    public string $deletingTitle = '';
+
 
     public function updatedSearch(): void
     {
@@ -107,10 +104,10 @@ new class extends Component {
                 unset($data['published_at']);
             }
             $announcement->update($data);
-            session()->flash('message', 'Announcement updated successfully.');
+            $this->dispatch('toast', message: 'Announcement updated successfully.', type: 'success');
         } else {
             Announcement::create($data);
-            session()->flash('message', 'Announcement created successfully.');
+            $this->dispatch('toast', message: 'Announcement created successfully.', type: 'success');
         }
 
         $this->showModal = false;
@@ -118,21 +115,10 @@ new class extends Component {
         $this->clearCache();
     }
 
-    public function confirmDelete(int $id): void
+    public function deleteAnnouncement(int $id): void
     {
-        $announcement = Announcement::where('market_id', $this->marketId)->findOrFail($id);
-        $this->deletingId = $announcement->id;
-        $this->deletingTitle = $announcement->title;
-        $this->showDeleteModal = true;
-    }
-
-    public function deleteAnnouncement(): void
-    {
-        Announcement::where('market_id', $this->marketId)->findOrFail($this->deletingId)->delete();
-        $this->showDeleteModal = false;
-        $this->deletingId = null;
-        $this->deletingTitle = '';
-        session()->flash('message', 'Announcement deleted successfully.');
+        Announcement::where('market_id', $this->marketId)->findOrFail($id)->delete();
+        $this->dispatch('toast', message: 'Announcement deleted successfully.', type: 'success');
         $this->clearCache();
     }
 
@@ -242,7 +228,7 @@ new class extends Component {
                                     <flux:menu>
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $announcement->id }})">{{ __('Edit') }}</flux:menu.item>
                                         <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete({{ $announcement->id }})">{{ __('Delete') }}</flux:menu.item>
+                                        <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Announcement', message: 'Are you sure you want to delete this announcement?', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteAnnouncement({{ $announcement->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>
                                 </flux:dropdown>
                             </td>
@@ -294,17 +280,5 @@ new class extends Component {
         </div>
     </flux:modal>
 
-    {{-- Delete Confirmation Modal --}}
-    <flux:modal wire:model="showDeleteModal" class="max-w-sm">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ __('Delete Announcement') }}</flux:heading>
-                <flux:subheading>{{ __('Are you sure you want to delete ":title"?', ['title' => Str::limit($deletingTitle, 40)]) }}</flux:subheading>
-            </div>
-            <div class="flex justify-end gap-3">
-                <flux:button variant="ghost" wire:click="$set('showDeleteModal', false)">{{ __('Cancel') }}</flux:button>
-                <flux:button variant="danger" wire:click="deleteAnnouncement">{{ __('Delete') }}</flux:button>
-            </div>
-        </div>
-    </flux:modal>
+
 </div>

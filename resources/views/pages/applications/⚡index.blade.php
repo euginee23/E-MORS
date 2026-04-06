@@ -111,7 +111,7 @@ new class extends Component {
         $this->assigningVendorName = '';
         $this->selectedStallId = null;
 
-        session()->flash('message', "Stall {$stall->stall_number} assigned to {$vendor->contact_name} successfully.");
+        $this->dispatch('toast', message: "Stall {$stall->stall_number} assigned to {$vendor->contact_name} successfully.", type: 'success');
         $this->clearCache();
     }
 

@@ -58,6 +58,17 @@
     @apply  !mb-0 !leading-tight;
 }
 
+/* Loading bar animation */
+@keyframes loading-bar {
+    0%   { width: 0%; opacity: 1; }
+    60%  { width: 75%; }
+    90%  { width: 90%; }
+    100% { width: 100%; opacity: 0; }
+}
+.animate-loading-bar {
+    animation: loading-bar 1.5s ease-in-out infinite;
+}
+
 input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {

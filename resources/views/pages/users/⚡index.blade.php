@@ -25,10 +25,7 @@ new class extends Component {
     public string $formPasswordConfirmation = '';
     public string $formRole = 'collector';
 
-    // Delete
-    public bool $showDeleteModal = false;
-    public ?int $deletingUserId = null;
-    public string $deletingUserName = '';
+
 
     public function updatedSearch(): void
     {
@@ -137,7 +134,7 @@ new class extends Component {
             }
 
             $user->save();
-            session()->flash('message', 'User updated successfully.');
+            $this->dispatch('toast', message: 'User updated successfully.', type: 'success');
         } else {
             User::create([
                 'name' => $this->formName,
@@ -146,7 +143,7 @@ new class extends Component {
                 'role' => $this->formRole,
                 'market_id' => $this->marketId,
             ]);
-            session()->flash('message', 'User created successfully.');
+            $this->dispatch('toast', message: 'User created successfully.', type: 'success');
         }
 
         $this->showModal = false;
@@ -154,29 +151,15 @@ new class extends Component {
         unset($this->users, $this->totalUsers, $this->adminCount, $this->collectorCount, $this->vendorCount);
     }
 
-    public function confirmDelete(int $userId): void
+    public function deleteUser(int $userId): void
     {
-        $user = User::where('market_id', $this->marketId)->findOrFail($userId);
-        $this->deletingUserId = $user->id;
-        $this->deletingUserName = $user->name;
-        $this->showDeleteModal = true;
-    }
-
-    public function deleteUser(): void
-    {
-        if ($this->deletingUserId === Auth::id()) {
-            session()->flash('error', 'You cannot delete your own account.');
-            $this->showDeleteModal = false;
+        if ($userId === Auth::id()) {
+            $this->dispatch('toast', message: 'You cannot delete your own account.', type: 'error');
             return;
         }
 
-        $user = User::where('market_id', $this->marketId)->findOrFail($this->deletingUserId);
-        $user->delete();
-
-        $this->showDeleteModal = false;
-        $this->deletingUserId = null;
-        $this->deletingUserName = '';
-        session()->flash('message', 'User deleted successfully.');
+        User::where('market_id', $this->marketId)->findOrFail($userId)->delete();
+        $this->dispatch('toast', message: 'User deleted successfully.', type: 'success');
         unset($this->users, $this->totalUsers, $this->adminCount, $this->collectorCount, $this->vendorCount);
     }
 
@@ -186,7 +169,7 @@ new class extends Component {
         $tempPassword = 'password123';
         $user->password = Hash::make($tempPassword);
         $user->save();
-        session()->flash('message', "Password for {$user->name} has been reset to: {$tempPassword}");
+        $this->dispatch('toast', message: "Password for {$user->name} has been reset to: {$tempPassword}", type: 'info');
     }
 
     private function resetForm(): void
@@ -310,10 +293,10 @@ new class extends Component {
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
                                     <flux:menu>
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $user->id }})">{{ __('Edit') }}</flux:menu.item>
-                                        <flux:menu.item icon="key" wire:click="resetPassword({{ $user->id }})" wire:confirm="Reset password for {{ $user->name }}?">{{ __('Reset Password') }}</flux:menu.item>
+                                        <flux:menu.item icon="key" x-on:click="$dispatch('open-confirm', { title: 'Reset Password', message: 'Reset password for {{ $user->name }}?', confirm: 'Reset', variant: 'warning', onConfirm: () => $wire.resetPassword({{ $user->id }}) })">{{ __('Reset Password') }}</flux:menu.item>
                                         @if($user->id !== auth()->id())
                                         <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete({{ $user->id }})">{{ __('Delete') }}</flux:menu.item>
+                                        <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete User', message: 'Are you sure you want to delete {{ $user->name }}? This cannot be undone.', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteUser({{ $user->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                         @endif
                                     </flux:menu>
                                 </flux:dropdown>
@@ -426,17 +409,5 @@ new class extends Component {
         </div>
     </flux:modal>
 
-    {{-- Delete Confirmation Modal --}}
-    <flux:modal wire:model="showDeleteModal" class="max-w-sm">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ __('Delete User') }}</flux:heading>
-                <flux:subheading>{{ __('Are you sure you want to delete :name? This action cannot be undone.', ['name' => $deletingUserName]) }}</flux:subheading>
-            </div>
-            <div class="flex justify-end gap-3">
-                <flux:button variant="ghost" wire:click="$set('showDeleteModal', false)">{{ __('Cancel') }}</flux:button>
-                <flux:button variant="danger" wire:click="deleteUser">{{ __('Delete') }}</flux:button>
-            </div>
-        </div>
-    </flux:modal>
+
 </div>

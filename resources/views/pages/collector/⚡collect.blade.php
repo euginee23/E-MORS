@@ -128,7 +128,7 @@ new class extends Component {
         ]);
 
         $this->lastReceiptNumber = $receiptNumber;
-        session()->flash('message', 'Payment recorded successfully. Receipt: ' . $receiptNumber);
+        $this->dispatch('toast', message: 'Payment recorded successfully. Receipt: ' . $receiptNumber, type: 'success');
         $this->resetForm();
         $this->clearCache();
     }

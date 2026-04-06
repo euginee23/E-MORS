@@ -26,10 +26,7 @@ new class extends Component {
     public string $formStatus = 'available';
     public ?int $formVendorId = null;
 
-    // Delete
-    public bool $showDeleteModal = false;
-    public ?int $deletingStallId = null;
-    public string $deletingStallNumber = '';
+
 
     // Inline map editing
     public bool $showAddSection = false;
@@ -198,10 +195,10 @@ new class extends Component {
         if ($this->editingStallId) {
             $stall = Stall::where('market_id', $this->marketId)->findOrFail($this->editingStallId);
             $stall->update($data);
-            session()->flash('message', 'Stall updated successfully.');
+            $this->dispatch('toast', message: 'Stall updated successfully.', type: 'success');
         } else {
             Stall::create(array_merge($data, ['market_id' => $this->marketId]));
-            session()->flash('message', 'Stall created successfully.');
+            $this->dispatch('toast', message: 'Stall created successfully.', type: 'success');
         }
 
         $this->showModal = false;
@@ -209,23 +206,10 @@ new class extends Component {
         $this->clearCache();
     }
 
-    public function confirmDelete(int $stallId): void
+    public function deleteStall(int $stallId): void
     {
-        $stall = Stall::where('market_id', $this->marketId)->findOrFail($stallId);
-        $this->deletingStallId = $stall->id;
-        $this->deletingStallNumber = $stall->stall_number;
-        $this->showDeleteModal = true;
-    }
-
-    public function deleteStall(): void
-    {
-        $stall = Stall::where('market_id', $this->marketId)->findOrFail($this->deletingStallId);
-        $stall->delete();
-
-        $this->showDeleteModal = false;
-        $this->deletingStallId = null;
-        $this->deletingStallNumber = '';
-        session()->flash('message', 'Stall deleted successfully.');
+        Stall::where('market_id', $this->marketId)->findOrFail($stallId)->delete();
+        $this->dispatch('toast', message: 'Stall deleted successfully.', type: 'success');
         $this->clearCache();
     }
 
@@ -233,7 +217,7 @@ new class extends Component {
     {
         $stall = Stall::where('market_id', $this->marketId)->findOrFail($stallId);
         $stall->update(['vendor_id' => null, 'status' => 'available']);
-        session()->flash('message', 'Vendor unassigned from stall ' . $stall->stall_number . '.');
+        $this->dispatch('toast', message: 'Vendor unassigned from stall ' . $stall->stall_number . '.', type: 'success');
         $this->clearCache();
     }
 
@@ -270,7 +254,7 @@ new class extends Component {
 
         $this->editingSection = null;
         $this->editingSectionName = '';
-        session()->flash('message', 'Section renamed to ' . $new . '.');
+        $this->dispatch('toast', message: 'Section renamed to ' . $new . '.', type: 'success');
         $this->clearCache();
     }
 
@@ -301,7 +285,7 @@ new class extends Component {
     public function generateSampleMap(): void
     {
         Artisan::call('db:seed', ['--class' => 'StallSeeder', '--force' => true]);
-        session()->flash('message', 'Sample stall map generated successfully.');
+        $this->dispatch('toast', message: 'Sample stall map generated successfully.', type: 'success');
         $this->clearCache();
     }
 
@@ -453,7 +437,7 @@ new class extends Component {
                         </button>
                     </div>
                     @endif
-                    <div class="grid gap-2" style="grid-template-columns: repeat({{ count($sectionStalls) + ($addingStallSection === $sectionKey ? 0 : 1) }}, minmax(0, 1fr))">
+                    <div class="grid gap-2" style="grid-template-columns: repeat({{ count($sectionStalls) + ($addingStallSection === $sectionKey ? 0 : 1) }}, minmax(0, 3.5rem))">
                         @foreach($sectionStalls as $stall)
                         @php
                             $bgColor = match($stall['status']) {
@@ -508,8 +492,7 @@ new class extends Component {
                                 @endif
                                 <div class="my-1 border-t border-zinc-100 dark:border-zinc-700"></div>
                                 <button
-                                    @click="open = false"
-                                    wire:click="confirmDelete({{ $stall['id'] }})"
+                                    x-on:click="open = false; $dispatch('open-confirm', { title: 'Delete Stall', message: 'Are you sure you want to delete stall {{ $stall['no'] }}? This cannot be undone.', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteStall({{ $stall['id'] }}) })"
                                     class="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                                 >
                                     <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -681,7 +664,7 @@ new class extends Component {
                                     <flux:menu>
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $stall->id }})">{{ __('Edit') }}</flux:menu.item>
                                         <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete({{ $stall->id }})">{{ __('Delete') }}</flux:menu.item>
+                                        <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Stall', message: 'Are you sure you want to delete stall {{ $stall->stall_number }}? This cannot be undone.', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteStall({{ $stall->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>
                                 </flux:dropdown>
                             </td>
@@ -815,17 +798,5 @@ new class extends Component {
         </form>
     </flux:modal>
 
-    {{-- Delete Confirmation Modal --}}
-    <flux:modal wire:model="showDeleteModal" class="max-w-sm">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ __('Delete Stall') }}</flux:heading>
-                <flux:subheading>{{ __('Are you sure you want to delete stall :number?', ['number' => $deletingStallNumber]) }}</flux:subheading>
-            </div>
-            <div class="flex justify-end gap-3">
-                <flux:button variant="ghost" wire:click="$set('showDeleteModal', false)">{{ __('Cancel') }}</flux:button>
-                <flux:button variant="danger" wire:click="deleteStall">{{ __('Delete') }}</flux:button>
-            </div>
-        </div>
-    </flux:modal>
+
 </div>

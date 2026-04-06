@@ -28,10 +28,7 @@ new class extends Component {
     public string $formPermitStatus = 'pending';
     public ?string $formPermitExpiry = null;
 
-    // Delete
-    public bool $showDeleteModal = false;
-    public ?int $deletingVendorId = null;
-    public string $deletingVendorName = '';
+
 
     // Assign stall
     public bool $showAssignModal = false;
@@ -135,10 +132,10 @@ new class extends Component {
         if ($this->editingVendorId) {
             $vendor = Vendor::where('market_id', $this->marketId)->findOrFail($this->editingVendorId);
             $vendor->update($data);
-            session()->flash('message', 'Vendor updated successfully.');
+            $this->dispatch('toast', message: 'Vendor updated successfully.', type: 'success');
         } else {
             Vendor::create(array_merge($data, ['market_id' => $this->marketId]));
-            session()->flash('message', 'Vendor created successfully.');
+            $this->dispatch('toast', message: 'Vendor created successfully.', type: 'success');
         }
 
         $this->showModal = false;
@@ -146,17 +143,9 @@ new class extends Component {
         $this->clearCache();
     }
 
-    public function confirmDelete(int $vendorId): void
+    public function deleteVendor(int $vendorId): void
     {
         $vendor = Vendor::where('market_id', $this->marketId)->findOrFail($vendorId);
-        $this->deletingVendorId = $vendor->id;
-        $this->deletingVendorName = $vendor->contact_name;
-        $this->showDeleteModal = true;
-    }
-
-    public function deleteVendor(): void
-    {
-        $vendor = Vendor::where('market_id', $this->marketId)->findOrFail($this->deletingVendorId);
 
         // Unassign any stall
         if ($vendor->stall) {
@@ -164,11 +153,7 @@ new class extends Component {
         }
 
         $vendor->delete();
-
-        $this->showDeleteModal = false;
-        $this->deletingVendorId = null;
-        $this->deletingVendorName = '';
-        session()->flash('message', 'Vendor deleted successfully.');
+        $this->dispatch('toast', message: 'Vendor deleted successfully.', type: 'success');
         $this->clearCache();
     }
 
@@ -237,7 +222,7 @@ new class extends Component {
         $this->assigningVendorName = '';
         $this->selectedStallId = null;
 
-        session()->flash('message', "Stall {$stall->stall_number} assigned to {$vendor->contact_name} successfully.");
+        $this->dispatch('toast', message: "Stall {$stall->stall_number} assigned to {$vendor->contact_name} successfully.", type: 'success');
         unset($this->availableStalls);
         $this->clearCache();
     }
@@ -339,7 +324,7 @@ new class extends Component {
                                         <flux:menu.item icon="building-storefront" wire:click="openAssignModal({{ $vendor->id }})">{{ __('Assign Stall') }}</flux:menu.item>
                                         @endif
                                         <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete({{ $vendor->id }})">{{ __('Delete') }}</flux:menu.item>
+                                        <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Vendor', message: 'Are you sure you want to delete {{ $vendor->contact_name }}? This will also unassign their stall.', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteVendor({{ $vendor->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>
                                 </flux:dropdown>
                             </td>
@@ -389,20 +374,6 @@ new class extends Component {
                     <flux:button variant="primary" type="submit">{{ $editingVendorId ? __('Update Vendor') : __('Create Vendor') }}</flux:button>
                 </div>
             </form>
-        </div>
-    </flux:modal>
-
-    {{-- Delete Confirmation Modal --}}
-    <flux:modal wire:model="showDeleteModal" class="max-w-sm">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ __('Delete Vendor') }}</flux:heading>
-                <flux:subheading>{{ __('Are you sure you want to delete :name? This will also unassign their stall.', ['name' => $deletingVendorName]) }}</flux:subheading>
-            </div>
-            <div class="flex justify-end gap-3">
-                <flux:button variant="ghost" wire:click="$set('showDeleteModal', false)">{{ __('Cancel') }}</flux:button>
-                <flux:button variant="danger" wire:click="deleteVendor">{{ __('Delete') }}</flux:button>
-            </div>
         </div>
     </flux:modal>
 

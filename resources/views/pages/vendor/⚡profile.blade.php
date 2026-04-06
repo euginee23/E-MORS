@@ -51,7 +51,7 @@ new class extends Component {
         $vendor = Auth::user()->vendor;
         if ($vendor) {
             $vendor->update(['contact_phone' => $this->formContactPhone ?: null]);
-            session()->flash('message', 'Contact information updated.');
+            $this->dispatch('toast', message: 'Contact information updated.', type: 'success');
         }
     }
 

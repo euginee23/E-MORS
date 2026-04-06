@@ -30,10 +30,7 @@ new class extends Component {
     public bool $showReceiptModal = false;
     public ?Collection $viewingCollection = null;
 
-    // Delete
-    public bool $showDeleteModal = false;
-    public ?int $deletingCollectionId = null;
-    public string $deletingReceiptNumber = '';
+
 
     public function mount(): void
     {
@@ -196,7 +193,7 @@ new class extends Component {
                 'notes' => $this->formNotes ?: null,
                 'collector_id' => $this->formStatus === 'paid' ? Auth::id() : null,
             ]);
-            session()->flash('message', 'Collection updated successfully.');
+            $this->dispatch('toast', message: 'Collection updated successfully.', type: 'success');
         } else {
             $receiptNumber = Collection::generateReceiptNumber($this->marketId);
             Collection::create([
@@ -211,7 +208,7 @@ new class extends Component {
                 'status' => $this->formStatus,
                 'notes' => $this->formNotes ?: null,
             ]);
-            session()->flash('message', 'Payment recorded successfully. Receipt: ' . $receiptNumber);
+            $this->dispatch('toast', message: 'Payment recorded successfully. Receipt: ' . $receiptNumber, type: 'success');
         }
 
         $this->showModal = false;
@@ -219,23 +216,10 @@ new class extends Component {
         $this->clearCache();
     }
 
-    public function confirmDelete(int $collectionId): void
+    public function deleteCollection(int $collectionId): void
     {
-        $collection = Collection::where('market_id', $this->marketId)->findOrFail($collectionId);
-        $this->deletingCollectionId = $collection->id;
-        $this->deletingReceiptNumber = $collection->receipt_number;
-        $this->showDeleteModal = true;
-    }
-
-    public function deleteCollection(): void
-    {
-        $collection = Collection::where('market_id', $this->marketId)->findOrFail($this->deletingCollectionId);
-        $collection->delete();
-
-        $this->showDeleteModal = false;
-        $this->deletingCollectionId = null;
-        $this->deletingReceiptNumber = '';
-        session()->flash('message', 'Collection deleted successfully.');
+        Collection::where('market_id', $this->marketId)->findOrFail($collectionId)->delete();
+        $this->dispatch('toast', message: 'Collection deleted successfully.', type: 'success');
         $this->clearCache();
     }
 
@@ -356,7 +340,7 @@ new class extends Component {
                                         <flux:menu.item icon="eye" wire:click="viewReceipt({{ $collection->id }})">{{ __('View Receipt') }}</flux:menu.item>
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $collection->id }})">{{ __('Edit') }}</flux:menu.item>
                                         <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete({{ $collection->id }})">{{ __('Delete') }}</flux:menu.item>
+                                        <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Collection', message: 'Are you sure you want to delete receipt {{ $collection->receipt_number }}?', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteCollection({{ $collection->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>
                                 </flux:dropdown>
                             </td>
@@ -471,17 +455,5 @@ new class extends Component {
     </flux:modal>
     @endif
 
-    {{-- Delete Confirmation Modal --}}
-    <flux:modal wire:model="showDeleteModal" class="max-w-sm">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ __('Delete Collection') }}</flux:heading>
-                <flux:subheading>{{ __('Are you sure you want to delete receipt :number?', ['number' => $deletingReceiptNumber]) }}</flux:subheading>
-            </div>
-            <div class="flex justify-end gap-3">
-                <flux:button variant="ghost" wire:click="$set('showDeleteModal', false)">{{ __('Cancel') }}</flux:button>
-                <flux:button variant="danger" wire:click="deleteCollection">{{ __('Delete') }}</flux:button>
-            </div>
-        </div>
-    </flux:modal>
+
 </div>

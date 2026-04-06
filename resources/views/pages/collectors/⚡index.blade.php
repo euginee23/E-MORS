@@ -25,10 +25,7 @@ new class extends Component {
     public string $formPassword = '';
     public string $formPasswordConfirmation = '';
 
-    // Delete
-    public bool $showDeleteModal = false;
-    public ?int $deletingCollectorId = null;
-    public string $deletingCollectorName = '';
+
 
     // View details
     public bool $showDetailModal = false;
@@ -228,7 +225,7 @@ new class extends Component {
             }
 
             $collector->save();
-            session()->flash('message', 'Collector updated successfully.');
+            $this->dispatch('toast', message: 'Collector updated successfully.', type: 'success');
         } else {
             User::create([
                 'name' => $this->formName,
@@ -237,7 +234,7 @@ new class extends Component {
                 'role' => UserRole::Collector,
                 'market_id' => $this->marketId,
             ]);
-            session()->flash('message', 'Collector added successfully.');
+            $this->dispatch('toast', message: 'Collector added successfully.', type: 'success');
         }
 
         $this->showModal = false;
@@ -245,31 +242,17 @@ new class extends Component {
         $this->clearCache();
     }
 
-    public function confirmDelete(int $collectorId): void
+    public function deleteCollector(int $collectorId): void
     {
         $collector = User::where('market_id', $this->marketId)
             ->where('role', UserRole::Collector)
             ->findOrFail($collectorId);
-        $this->deletingCollectorId = $collector->id;
-        $this->deletingCollectorName = $collector->name;
-        $this->showDeleteModal = true;
-    }
-
-    public function deleteCollector(): void
-    {
-        $collector = User::where('market_id', $this->marketId)
-            ->where('role', UserRole::Collector)
-            ->findOrFail($this->deletingCollectorId);
 
         // Unassign collections from this collector
         Collection::where('collector_id', $collector->id)->update(['collector_id' => null]);
 
         $collector->delete();
-
-        $this->showDeleteModal = false;
-        $this->deletingCollectorId = null;
-        $this->deletingCollectorName = '';
-        session()->flash('message', 'Collector removed successfully.');
+        $this->dispatch('toast', message: 'Collector removed successfully.', type: 'success');
         $this->clearCache();
     }
 
@@ -281,7 +264,7 @@ new class extends Component {
         $tempPassword = 'password123';
         $collector->password = Hash::make($tempPassword);
         $collector->save();
-        session()->flash('message', "Password for {$collector->name} has been reset to: {$tempPassword}");
+        $this->dispatch('toast', message: "Password for {$collector->name} has been reset to: {$tempPassword}", type: 'info');
     }
 
     private function resetForm(): void
@@ -403,9 +386,9 @@ new class extends Component {
                                     <flux:menu>
                                         <flux:menu.item icon="eye" wire:click="viewDetails({{ $collector->id }})">{{ __('View Details') }}</flux:menu.item>
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $collector->id }})">{{ __('Edit') }}</flux:menu.item>
-                                        <flux:menu.item icon="key" wire:click="resetPassword({{ $collector->id }})" wire:confirm="Reset password for {{ $collector->name }}?">{{ __('Reset Password') }}</flux:menu.item>
+                                        <flux:menu.item icon="key" x-on:click="$dispatch('open-confirm', { title: 'Reset Password', message: 'Reset password for {{ $collector->name }}?', confirm: 'Reset', variant: 'warning', onConfirm: () => $wire.resetPassword({{ $collector->id }}) })">{{ __('Reset Password') }}</flux:menu.item>
                                         <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete({{ $collector->id }})">{{ __('Remove') }}</flux:menu.item>
+                                        <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Remove Collector', message: 'Are you sure you want to remove {{ $collector->name }}? Their existing collection records will be preserved but unassigned.', confirm: 'Remove', variant: 'danger', onConfirm: () => $wire.deleteCollector({{ $collector->id }}) })">{{ __('Remove') }}</flux:menu.item>
                                     </flux:menu>
                                 </flux:dropdown>
                             </td>
@@ -524,17 +507,5 @@ new class extends Component {
     </flux:modal>
     @endif
 
-    {{-- Delete Confirmation Modal --}}
-    <flux:modal wire:model="showDeleteModal" class="max-w-sm">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ __('Remove Collector') }}</flux:heading>
-                <flux:subheading>{{ __('Are you sure you want to remove :name? Their existing collection records will be preserved but unassigned.', ['name' => $deletingCollectorName]) }}</flux:subheading>
-            </div>
-            <div class="flex justify-end gap-3">
-                <flux:button variant="ghost" wire:click="$set('showDeleteModal', false)">{{ __('Cancel') }}</flux:button>
-                <flux:button variant="danger" wire:click="deleteCollector">{{ __('Remove') }}</flux:button>
-            </div>
-        </div>
-    </flux:modal>
+
 </div>

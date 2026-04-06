@@ -40,6 +40,9 @@
                     <flux:sidebar.item icon="shield-check" :href="route('users.index')" :current="request()->routeIs('users.*')" wire:navigate>
                         {{ __('Users & Access') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="megaphone" :href="route('announcements.index')" :current="request()->routeIs('announcements.*')" wire:navigate>
+                        {{ __('Announcements') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
                 @elseif(auth()->user()->isCollector())
                 <flux:sidebar.group :heading="__('Collections')" class="grid">

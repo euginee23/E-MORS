@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             VendorSeeder::class,
             StallSeeder::class,
             CollectionSeeder::class,
+            AnnouncementSeeder::class,
         ]);
     }
 }

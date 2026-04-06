@@ -1,9 +1,12 @@
 <?php
 
 use App\Enums\PermitStatus;
+use App\Mail\StallAssigned;
+use App\Models\Stall;
 use App\Models\User;
 use App\Models\Vendor;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -29,6 +32,12 @@ new class extends Component {
     public bool $showDeleteModal = false;
     public ?int $deletingVendorId = null;
     public string $deletingVendorName = '';
+
+    // Assign stall
+    public bool $showAssignModal = false;
+    public ?int $assigningVendorId = null;
+    public string $assigningVendorName = '';
+    public ?int $selectedStallId = null;
 
     public function updatedSearch(): void
     {
@@ -180,6 +189,59 @@ new class extends Component {
         unset($this->vendors, $this->totalVendors, $this->activeCount, $this->pendingCount, $this->expiredCount);
     }
 
+    #[Computed]
+    public function availableStalls()
+    {
+        return Stall::where('market_id', $this->marketId)
+            ->where('status', 'available')
+            ->orderBy('section')
+            ->orderBy('stall_number')
+            ->get();
+    }
+
+    public function openAssignModal(int $vendorId): void
+    {
+        $vendor = Vendor::where('market_id', $this->marketId)->findOrFail($vendorId);
+        $this->assigningVendorId = $vendor->id;
+        $this->assigningVendorName = $vendor->contact_name;
+        $this->selectedStallId = null;
+        $this->showAssignModal = true;
+    }
+
+    public function assignStall(): void
+    {
+        $this->validate([
+            'selectedStallId' => ['required', 'integer'],
+        ], [
+            'selectedStallId.required' => 'Please select a stall.',
+        ]);
+
+        $vendor = Vendor::where('market_id', $this->marketId)
+            ->with('user')
+            ->findOrFail($this->assigningVendorId);
+
+        $stall = Stall::where('market_id', $this->marketId)
+            ->where('status', 'available')
+            ->findOrFail($this->selectedStallId);
+
+        $stall->update(['vendor_id' => $vendor->id, 'status' => 'occupied']);
+        $vendor->update(['permit_status' => 'active']);
+
+        if ($vendor->user) {
+            $stall->load('market');
+            Mail::to($vendor->user->email)->send(new StallAssigned($vendor->user, $vendor, $stall));
+        }
+
+        $this->showAssignModal = false;
+        $this->assigningVendorId = null;
+        $this->assigningVendorName = '';
+        $this->selectedStallId = null;
+
+        session()->flash('message', "Stall {$stall->stall_number} assigned to {$vendor->contact_name} successfully.");
+        unset($this->availableStalls);
+        $this->clearCache();
+    }
+
     public function render()
     {
         return $this->view()->title(__('Vendor Management'));
@@ -273,6 +335,9 @@ new class extends Component {
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
                                     <flux:menu>
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $vendor->id }})">{{ __('Edit') }}</flux:menu.item>
+                                        @if($vendor->permit_status === \App\Enums\PermitStatus::Pending && !$vendor->stall)
+                                        <flux:menu.item icon="building-storefront" wire:click="openAssignModal({{ $vendor->id }})">{{ __('Assign Stall') }}</flux:menu.item>
+                                        @endif
                                         <flux:menu.separator />
                                         <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete({{ $vendor->id }})">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>
@@ -338,6 +403,36 @@ new class extends Component {
                 <flux:button variant="ghost" wire:click="$set('showDeleteModal', false)">{{ __('Cancel') }}</flux:button>
                 <flux:button variant="danger" wire:click="deleteVendor">{{ __('Delete') }}</flux:button>
             </div>
+        </div>
+    </flux:modal>
+
+    {{-- Assign Stall Modal --}}
+    <flux:modal wire:model="showAssignModal" class="max-w-md">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg">{{ __('Assign a Stall') }}</flux:heading>
+                <flux:subheading>{{ __('Assign an available stall to :name.', ['name' => $assigningVendorName]) }}</flux:subheading>
+            </div>
+            <form wire:submit="assignStall" class="space-y-4">
+                <div>
+                    <flux:select wire:model="selectedStallId" :label="__('Available Stalls')">
+                        <flux:select.option value="">{{ __('Select a stall…') }}</flux:select.option>
+                        @foreach($this->availableStalls as $stall)
+                        <flux:select.option :value="$stall->id">
+                            {{ $stall->stall_number }} — {{ $stall->section }} ({{ $stall->size }}, ₱{{ number_format($stall->monthly_rate, 2) }}/mo)
+                        </flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    @error('selectedStallId') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                    @if($this->availableStalls->isEmpty())
+                    <p class="mt-2 text-sm text-amber-600 dark:text-amber-400">No available stalls at the moment.</p>
+                    @endif
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <flux:button variant="ghost" wire:click="$set('showAssignModal', false)">{{ __('Cancel') }}</flux:button>
+                    <flux:button variant="primary" type="submit" :disabled="$this->availableStalls->isEmpty()">{{ __('Assign & Notify') }}</flux:button>
+                </div>
+            </form>
         </div>
     </flux:modal>
 </div>

@@ -20,6 +20,8 @@ class Vendor extends Model
         'business_name',
         'contact_name',
         'contact_phone',
+        'address',
+        'product_type',
         'permit_number',
         'permit_status',
         'permit_expiry',

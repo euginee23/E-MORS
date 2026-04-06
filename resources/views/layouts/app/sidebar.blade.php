@@ -37,6 +37,13 @@
                 </flux:sidebar.group>
 
                 <flux:sidebar.group :heading="__('Administration')" class="grid">
+                    <flux:sidebar.item icon="inbox-arrow-down" :href="route('applications.index')" :current="request()->routeIs('applications.*')" wire:navigate>
+                        {{ __('Applications') }}
+                        @php $pendingApps = \App\Models\Vendor::where('market_id', auth()->user()->market_id)->where('permit_status', 'pending')->count(); @endphp
+                        @if($pendingApps > 0)
+                        <flux:badge color="yellow" size="sm" class="ml-auto">{{ $pendingApps }}</flux:badge>
+                        @endif
+                    </flux:sidebar.item>
                     <flux:sidebar.item icon="shield-check" :href="route('users.index')" :current="request()->routeIs('users.*')" wire:navigate>
                         {{ __('Users & Access') }}
                     </flux:sidebar.item>

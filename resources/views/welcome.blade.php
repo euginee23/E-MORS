@@ -56,6 +56,12 @@
                                     </svg>
                                     See How It Works
                                 </a>
+                                <a href="#markets" class="inline-flex items-center justify-center gap-2 sm:gap-3 px-6 py-3 sm:px-8 sm:py-4 border-2 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300 font-bold text-base sm:text-lg rounded-xl sm:rounded-2xl transition-all hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20">
+                                    <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    Register as Vendor
+                                </a>
                             </div>
                         </div>
 
@@ -391,6 +397,62 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Markets Section -->
+            @php $markets = \App\Models\Market::orderBy('name')->get(); @endphp
+            @if($markets->isNotEmpty())
+            <section id="markets" class="py-12 sm:py-20 bg-white dark:bg-zinc-900">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center mb-8 sm:mb-14">
+                        <span class="inline-block px-3 py-1.5 sm:px-4 sm:py-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs sm:text-sm font-bold rounded-full mb-3 sm:mb-4">
+                            🏪 REGISTERED MARKETS
+                        </span>
+                        <h2 class="text-2xl sm:text-4xl font-black text-zinc-900 dark:text-white mb-3 sm:mb-4">
+                            Find Your <span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-500">Market</span>
+                        </h2>
+                        <p class="text-base sm:text-lg text-zinc-600 dark:text-zinc-400 max-w-xl mx-auto">
+                            Select your market below and register as a vendor. Your application will be reviewed and you'll receive an email once a stall is assigned.
+                        </p>
+                    </div>
+
+                    <div class="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        @foreach($markets as $market)
+                        <a href="{{ route('vendor.apply', $market) }}"
+                           class="group relative flex flex-col gap-4 rounded-2xl border-2 border-orange-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:border-orange-400 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-orange-500">
+                            <!-- Icon -->
+                            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-amber-100 dark:from-orange-900/40 dark:to-amber-900/40 transition-transform group-hover:scale-110">
+                                <svg class="h-6 w-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                </svg>
+                            </div>
+
+                            <!-- Info -->
+                            <div class="flex-1">
+                                <h3 class="text-lg font-bold text-zinc-900 transition-colors group-hover:text-orange-600 dark:text-zinc-100 dark:group-hover:text-orange-400">
+                                    {{ $market->name }}
+                                </h3>
+                                <p class="mt-1 flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+                                    <svg class="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    {{ $market->address }}
+                                </p>
+                            </div>
+
+                            <!-- CTA -->
+                            <div class="flex items-center justify-between border-t border-orange-100 pt-4 dark:border-zinc-700">
+                                <span class="text-sm font-semibold text-orange-600 dark:text-orange-400">Apply as vendor</span>
+                                <svg class="h-4 w-4 text-orange-500 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </div>
+                        </a>
+                        @endforeach
+                    </div>
+                </div>
+            </section>
+            @endif
 
             <!-- CTA Section -->
             <section class="py-12 sm:py-20 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 dark:from-black dark:via-zinc-900 dark:to-black relative overflow-hidden">

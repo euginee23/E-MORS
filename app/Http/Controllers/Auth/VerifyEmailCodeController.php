@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Mail\VendorApplicationReceived;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 
 class VerifyEmailCodeController extends Controller
 {
@@ -29,6 +31,10 @@ class VerifyEmailCodeController extends Controller
 
         $user->markEmailAsVerified();
         Cache::forget("email_verify_code_{$user->id}");
+
+        if ($user->role === 'vendor' && $user->vendor) {
+            Mail::to($user->email)->send(new VendorApplicationReceived($user, $user->vendor, $user->market));
+        }
 
         return redirect()->intended(config('fortify.home'));
     }

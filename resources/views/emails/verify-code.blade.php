@@ -158,6 +158,23 @@
             color: #ea580c;
             text-decoration: none;
         }
+        @media only screen and (max-width: 480px) {
+            .wrapper { margin: 0 auto; padding: 0 8px 24px; }
+            .card { border-radius: 16px; }
+            .header { padding: 28px 20px 24px; }
+            .header-title { font-size: 22px; }
+            .header-sub { font-size: 13px; }
+            .logo-text { font-size: 19px; }
+            .logo-icon { width: 36px; height: 36px; }
+            .body { padding: 24px 20px; }
+            .greeting { font-size: 15px; }
+            .message { font-size: 14px; margin-bottom: 24px; }
+            .otp-wrapper { gap: 6px; margin-bottom: 10px; }
+            .otp-digit { width: 42px; height: 50px; font-size: 24px; line-height: 46px; border-radius: 10px; }
+            .expiry-note { font-size: 12px; margin-bottom: 24px; }
+            .security { padding: 14px 16px; font-size: 12px; }
+            .footer { padding: 20px; }
+        }
     </style>
 </head>
 <body>

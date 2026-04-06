@@ -41,6 +41,30 @@
         .footer { padding: 24px 40px; background: #fafafa; border-top: 1px solid #f4f4f5; text-align: center; }
         .footer-brand { font-size: 13px; font-weight: 700; color: #ea580c; margin-bottom: 6px; }
         .footer-text { font-size: 12px; color: #a1a1aa; line-height: 1.6; }
+        @media only screen and (max-width: 480px) {
+            .wrapper { margin: 0 auto; padding: 0 8px 24px; }
+            .card { border-radius: 16px; }
+            .header { padding: 28px 20px 24px; }
+            .header-title { font-size: 22px; }
+            .header-sub { font-size: 13px; }
+            .logo-text { font-size: 19px; }
+            .logo-icon { width: 36px; height: 36px; }
+            .header-icon { width: 52px; height: 52px; }
+            .body { padding: 24px 20px; }
+            .greeting { font-size: 15px; }
+            .message { font-size: 14px; margin-bottom: 22px; }
+            .stall-card { padding: 18px 16px; margin-bottom: 22px; }
+            .stall-number { font-size: 40px; }
+            .stall-meta { gap: 12px; }
+            .stall-meta-item .val { font-size: 14px; }
+            .detail-row { flex-direction: column; gap: 2px; padding: 10px 14px; }
+            .detail-label { width: auto; font-size: 11px; }
+            .detail-value { font-size: 13px; }
+            .details-card { margin-bottom: 22px; }
+            .cta-button { font-size: 14px; padding: 12px 24px; margin-bottom: 22px; }
+            .security { padding: 14px 16px; font-size: 12px; }
+            .footer { padding: 20px; }
+        }
     </style>
 </head>
 <body>

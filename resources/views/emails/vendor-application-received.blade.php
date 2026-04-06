@@ -37,6 +37,29 @@
         .footer { padding: 24px 40px; background: #fafafa; border-top: 1px solid #f4f4f5; text-align: center; }
         .footer-brand { font-size: 13px; font-weight: 700; color: #ea580c; margin-bottom: 6px; }
         .footer-text { font-size: 12px; color: #a1a1aa; line-height: 1.6; }
+        @media only screen and (max-width: 480px) {
+            .wrapper { margin: 0 auto; padding: 0 8px 24px; }
+            .card { border-radius: 16px; }
+            .header { padding: 28px 20px 24px; }
+            .header-title { font-size: 22px; }
+            .header-sub { font-size: 13px; }
+            .logo-text { font-size: 19px; }
+            .logo-icon { width: 36px; height: 36px; }
+            .header-icon { width: 52px; height: 52px; }
+            .body { padding: 24px 20px; }
+            .greeting { font-size: 15px; }
+            .message { font-size: 14px; margin-bottom: 22px; }
+            .detail-row { flex-direction: column; gap: 2px; padding: 10px 14px; }
+            .detail-label { width: auto; font-size: 11px; }
+            .detail-value { font-size: 13px; }
+            .details-card { margin-bottom: 22px; }
+            .steps { padding: 16px 18px; margin-bottom: 22px; }
+            .step { gap: 10px; margin-bottom: 10px; }
+            .step-num { width: 22px; height: 22px; font-size: 10px; }
+            .step-text { font-size: 12px; }
+            .security { padding: 14px 16px; font-size: 12px; }
+            .footer { padding: 20px; }
+        }
     </style>
 </head>
 <body>

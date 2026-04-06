@@ -3,6 +3,7 @@
 use App\Enums\StallStatus;
 use App\Models\Stall;
 use App\Models\Vendor;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -29,6 +30,18 @@ new class extends Component {
     public bool $showDeleteModal = false;
     public ?int $deletingStallId = null;
     public string $deletingStallNumber = '';
+
+    // Inline map editing
+    public bool $showAddSection = false;
+    public string $newSectionLetter = '';
+    public ?string $addingStallSection = null;
+    public string $inlineStallNumber = '';
+    public string $inlineSize = '3x3m';
+    public string $inlineRate = '3500';
+
+    // Section editing
+    public ?string $editingSection = null;
+    public string $editingSectionName = '';
 
     public function updatedSearch(): void
     {
@@ -216,6 +229,58 @@ new class extends Component {
         $this->clearCache();
     }
 
+    public function unassignVendor(int $stallId): void
+    {
+        $stall = Stall::where('market_id', $this->marketId)->findOrFail($stallId);
+        $stall->update(['vendor_id' => null, 'status' => 'available']);
+        session()->flash('message', 'Vendor unassigned from stall ' . $stall->stall_number . '.');
+        $this->clearCache();
+    }
+
+    public function startEditSection(string $section): void
+    {
+        $this->editingSection = $section;
+        $this->editingSectionName = $section;
+        $this->resetValidation();
+    }
+
+    public function saveSection(): void
+    {
+        $this->validate(['editingSectionName' => ['required', 'alpha', 'max:5']]);
+        $old = $this->editingSection;
+        $new = strtoupper(trim($this->editingSectionName));
+
+        if ($old === $new) {
+            $this->editingSection = null;
+            return;
+        }
+
+        if (array_key_exists($new, $this->stallMap)) {
+            $this->addError('editingSectionName', 'Section ' . $new . ' already exists.');
+            return;
+        }
+
+        Stall::where('market_id', $this->marketId)
+            ->where('section', $old)
+            ->get()
+            ->each(function ($stall) use ($old, $new) {
+                $newNumber = str_replace($old . '-', $new . '-', $stall->stall_number);
+                $stall->update(['section' => $new, 'stall_number' => $newNumber]);
+            });
+
+        $this->editingSection = null;
+        $this->editingSectionName = '';
+        session()->flash('message', 'Section renamed to ' . $new . '.');
+        $this->clearCache();
+    }
+
+    public function cancelEditSection(): void
+    {
+        $this->editingSection = null;
+        $this->editingSectionName = '';
+        $this->resetValidation();
+    }
+
     private function resetForm(): void
     {
         $this->editingStallId = null;
@@ -231,6 +296,87 @@ new class extends Component {
     private function clearCache(): void
     {
         unset($this->stalls, $this->stallMap, $this->totalStalls, $this->occupiedCount, $this->availableCount, $this->maintenanceCount, $this->availableVendors, $this->sections);
+    }
+
+    public function generateSampleMap(): void
+    {
+        Artisan::call('db:seed', ['--class' => 'StallSeeder', '--force' => true]);
+        session()->flash('message', 'Sample stall map generated successfully.');
+        $this->clearCache();
+    }
+
+    public function openAddSection(): void
+    {
+        $this->showAddSection = true;
+        $this->newSectionLetter = '';
+        $this->addingStallSection = null;
+        $this->resetValidation();
+    }
+
+    public function createSection(): void
+    {
+        $this->validate(['newSectionLetter' => ['required', 'alpha', 'max:5']]);
+        $letter = strtoupper(trim($this->newSectionLetter));
+
+        if (array_key_exists($letter, $this->stallMap)) {
+            $this->addError('newSectionLetter', 'Section already exists.');
+            return;
+        }
+
+        $this->showAddSection = false;
+        $this->newSectionLetter = '';
+        $this->openInlineAddStall($letter);
+    }
+
+    public function openInlineAddStall(string $section): void
+    {
+        $this->addingStallSection = $section;
+        $existing = $this->stallMap[$section] ?? [];
+        $nextNum = count($existing) + 1;
+        $this->inlineStallNumber = $section . '-' . str_pad($nextNum, 2, '0', STR_PAD_LEFT);
+        $this->inlineSize = '3x3m';
+        $this->inlineRate = '3500';
+        $this->showAddSection = false;
+        $this->resetValidation();
+    }
+
+    public function cancelInlineAdd(): void
+    {
+        $this->addingStallSection = null;
+        $this->inlineStallNumber = '';
+        $this->showAddSection = false;
+        $this->newSectionLetter = '';
+        $this->resetValidation();
+    }
+
+    public function quickSaveStall(): void
+    {
+        if (!$this->addingStallSection) {
+            return;
+        }
+
+        $this->validate([
+            'inlineStallNumber' => [
+                'required', 'string', 'max:10',
+                Rule::unique('stalls', 'stall_number')->where('market_id', $this->marketId),
+            ],
+            'inlineSize' => ['required', 'string', 'max:10'],
+            'inlineRate' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        Stall::create([
+            'stall_number' => $this->inlineStallNumber,
+            'section'      => $this->addingStallSection,
+            'size'         => $this->inlineSize,
+            'monthly_rate' => $this->inlineRate,
+            'status'       => 'available',
+            'vendor_id'    => null,
+            'market_id'    => $this->marketId,
+        ]);
+
+        $section = $this->addingStallSection;
+        $this->clearCache();
+        $this->cancelInlineAdd();
     }
 
     public function render()
@@ -254,9 +400,6 @@ new class extends Component {
                 <flux:heading size="xl">{{ __('Stall Allocation') }}</flux:heading>
                 <flux:subheading class="mt-1">{{ __('Visual stall mapping, real-time availability, and assignment management.') }}</flux:subheading>
             </div>
-            <flux:button icon="plus" variant="primary" wire:click="openCreateModal">
-                {{ __('Add Stall') }}
-            </flux:button>
         </div>
 
         {{-- Stats Row --}}
@@ -293,9 +436,24 @@ new class extends Component {
             </div>
             <div class="p-6">
                 @foreach($this->stallMap as $sectionKey => $sectionStalls)
-                <div class="mb-6 last:mb-0">
-                    <flux:text class="mb-2 text-sm font-semibold">{{ __('Section :section', ['section' => $sectionKey]) }}</flux:text>
-                    <div class="grid grid-cols-10 gap-2 sm:grid-cols-20">
+                <div class="mb-6" wire:key="section-{{ $sectionKey }}">
+                    {{-- Section header with inline rename --}}
+                    @if($editingSection === $sectionKey)
+                    <div class="mb-2 flex items-center gap-2">
+                        <input wire:model="editingSectionName" wire:keydown.enter="saveSection" wire:keydown.escape="cancelEditSection" type="text" maxlength="5" class="w-32 rounded-lg border border-orange-400 bg-white px-3 py-1.5 text-sm font-semibold uppercase tracking-wider shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:bg-zinc-800 dark:text-zinc-200" />
+                        @error('editingSectionName') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                        <button wire:click="saveSection" class="cursor-pointer rounded-md bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600">{{ __('Save') }}</button>
+                        <button wire:click="cancelEditSection" class="cursor-pointer rounded-md border border-zinc-300 px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800">{{ __('Cancel') }}</button>
+                    </div>
+                    @else
+                    <div class="mb-2 flex items-center gap-1.5">
+                        <flux:text class="text-sm font-semibold">{{ __('Section :section', ['section' => $sectionKey]) }}</flux:text>
+                        <button wire:click="startEditSection('{{ $sectionKey }}')" class="cursor-pointer rounded p-0.5 text-zinc-400 transition-colors hover:text-orange-500">
+                            <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                    </div>
+                    @endif
+                    <div class="grid gap-2" style="grid-template-columns: repeat({{ count($sectionStalls) + ($addingStallSection === $sectionKey ? 0 : 1) }}, minmax(0, 1fr))">
                         @foreach($sectionStalls as $stall)
                         @php
                             $bgColor = match($stall['status']) {
@@ -309,19 +467,169 @@ new class extends Component {
                                 $label .= ' (' . $stall['vendor'] . ')';
                             }
                         @endphp
-                        <flux:tooltip :content="$label">
-                            <div class="flex aspect-square items-center justify-center rounded {{ $bgColor }} cursor-pointer text-xs font-medium text-white transition-colors" wire:click="openEditModal({{ $stall['id'] }})">
+                        <div x-data="{ open: false }" class="relative" wire:key="stall-{{ $stall['id'] }}">
+                            <button
+                                @click="open = !open"
+                                @click.outside="open = false"
+                                title="{{ $label }}"
+                                class="flex aspect-square w-full items-center justify-center rounded {{ $bgColor }} cursor-pointer text-xs font-medium text-white transition-colors select-none"
+                            >
                                 {{ str_replace($sectionKey . '-', '', $stall['no']) }}
+                            </button>
+                            <div
+                                x-show="open"
+                                x-cloak
+                                x-transition:enter="transition ease-out duration-100"
+                                x-transition:enter-start="opacity-0 scale-95"
+                                x-transition:enter-end="opacity-100 scale-100"
+                                x-transition:leave="transition ease-in duration-75"
+                                x-transition:leave-start="opacity-100 scale-100"
+                                x-transition:leave-end="opacity-0 scale-95"
+                                class="absolute left-0 top-full z-50 mt-1 min-w-[170px] rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
+                            >
+                                <p class="border-b border-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">{{ $stall['no'] }}</p>
+                                <button
+                                    @click="open = false"
+                                    wire:click="openEditModal({{ $stall['id'] }})"
+                                    class="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700/50"
+                                >
+                                    <svg class="size-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    {{ __('Edit stall') }}
+                                </button>
+                                @if($stall['vendor'])
+                                <button
+                                    @click="open = false"
+                                    wire:click="unassignVendor({{ $stall['id'] }})"
+                                    class="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700/50"
+                                >
+                                    <svg class="size-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zm5-7l5 5m0-5l-5 5"/></svg>
+                                    {{ __('Unassign vendor') }}
+                                </button>
+                                @endif
+                                <div class="my-1 border-t border-zinc-100 dark:border-zinc-700"></div>
+                                <button
+                                    @click="open = false"
+                                    wire:click="confirmDelete({{ $stall['id'] }})"
+                                    class="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                >
+                                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    {{ __('Remove stall') }}
+                                </button>
                             </div>
-                        </flux:tooltip>
+                        </div>
                         @endforeach
+
+                        {{-- + stall box --}}
+                        @if($addingStallSection !== $sectionKey)
+                        <flux:tooltip :content="__('Add stall to Section :s', ['s' => $sectionKey])">
+                            <button wire:click="openInlineAddStall('{{ $sectionKey }}')" class="flex aspect-square w-full cursor-pointer items-center justify-center rounded border-2 border-dashed border-zinc-300 text-lg font-light text-zinc-400 transition-colors hover:border-orange-400 hover:text-orange-500 dark:border-zinc-600">+</button>
+                        </flux:tooltip>
+                        @endif
                     </div>
+
+                    {{-- Inline add-stall form --}}
+                    @if($addingStallSection === $sectionKey)
+                    <div class="mt-3 rounded-xl border-2 border-orange-300 bg-orange-50 p-5 dark:border-orange-700/60 dark:bg-orange-900/20">
+                        <p class="mb-4 text-sm font-semibold text-orange-700 dark:text-orange-400">{{ __('Add stall to Section :s', ['s' => $sectionKey]) }}</p>
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Stall No.') }}</label>
+                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $sectionKey }}-01" />
+                                @error('inlineStallNumber') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                            </div>
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Size') }}</label>
+                                <input wire:model="inlineSize" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="3x3m" />
+                            </div>
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Monthly Rate (₱)') }}</label>
+                                <input wire:model="inlineRate" type="number" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="3500" />
+                            </div>
+                            <div class="flex items-end gap-2">
+                                <button wire:click="quickSaveStall" class="cursor-pointer rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600">{{ __('Add') }}</button>
+                                <button wire:click="cancelInlineAdd" class="cursor-pointer rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{{ __('Cancel') }}</button>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
                 </div>
                 @endforeach
 
-                @if(empty($this->stallMap))
-                <div class="py-8 text-center text-zinc-500">
-                    {{ __('No stalls have been created yet. Click "Add Stall" to get started.') }}
+                {{-- New section row (not yet in stallMap) --}}
+                @if($addingStallSection && !array_key_exists($addingStallSection, $this->stallMap))
+                <div class="mb-6" wire:key="section-new-{{ $addingStallSection }}">
+                    <flux:text class="mb-2 text-sm font-semibold">{{ __('Section :section', ['section' => $addingStallSection]) }}</flux:text>
+                    <div class="rounded-xl border-2 border-orange-300 bg-orange-50 p-5 dark:border-orange-700/60 dark:bg-orange-900/20">
+                        <p class="mb-4 text-sm font-semibold text-orange-700 dark:text-orange-400">{{ __('Add first stall to Section :s', ['s' => $addingStallSection]) }}</p>
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Stall No.') }}</label>
+                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $addingStallSection }}-01" />
+                                @error('inlineStallNumber') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                            </div>
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Size') }}</label>
+                                <input wire:model="inlineSize" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="3x3m" />
+                            </div>
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Monthly Rate (₱)') }}</label>
+                                <input wire:model="inlineRate" type="number" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="3500" />
+                            </div>
+                            <div class="flex items-end gap-2">
+                                <button wire:click="quickSaveStall" class="cursor-pointer rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600">{{ __('Add') }}</button>
+                                <button wire:click="cancelInlineAdd" class="cursor-pointer rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{{ __('Cancel') }}</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @endif
+
+                @if(empty($this->stallMap) && !$addingStallSection)
+                <div class="flex flex-col items-center justify-center gap-6 py-16 text-center">
+                    <div class="flex size-20 items-center justify-center rounded-2xl bg-orange-50 dark:bg-orange-900/20">
+                        <svg class="size-10 text-orange-300 dark:text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+                    </div>
+                    <div>
+                        <p class="text-base font-semibold text-zinc-700 dark:text-zinc-200">{{ __('No stall map yet') }}</p>
+                        <p class="mt-1 text-sm text-zinc-400">{{ __('Add your first section to start building the map, or generate a sample layout.') }}</p>
+                    </div>
+                    <div class="flex flex-wrap items-center justify-center gap-3">
+                        <button wire:click="openAddSection" class="cursor-pointer flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600">
+                            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            {{ __('Add a Section') }}
+                        </button>
+                        <button wire:click="generateSampleMap" class="cursor-pointer flex items-center gap-2 rounded-xl border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
+                            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            {{ __('Generate Sample Map') }}
+                        </button>
+                    </div>
+                </div>
+                @endif
+
+                {{-- Add Section bar (only when map has sections already) --}}
+                @if(!empty($this->stallMap))
+                <div class="mt-4 border-t border-orange-100 pt-4 dark:border-zinc-700">
+                    @if($showAddSection)
+                    <div class="rounded-xl border-2 border-orange-300 bg-orange-50 p-5 dark:border-orange-700/60 dark:bg-orange-900/20">
+                        <p class="mb-4 text-sm font-semibold text-orange-700 dark:text-orange-400">{{ __('New Section') }}</p>
+                        <div class="flex flex-wrap items-end gap-4">
+                            <div class="flex flex-col gap-1.5 flex-1 max-w-xs">
+                                <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Section letter') }}</label>
+                                <input wire:model="newSectionLetter" wire:keydown.enter="createSection" type="text" maxlength="5" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm uppercase tracking-widest shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="E" />
+                                @error('newSectionLetter') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                            </div>
+                            <div class="flex items-end gap-2">
+                                <button wire:click="createSection" class="cursor-pointer rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600">{{ __('Create') }}</button>
+                                <button wire:click="cancelInlineAdd" class="cursor-pointer rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{{ __('Cancel') }}</button>
+                            </div>
+                        </div>
+                    </div>
+                    @else
+                    <button wire:click="openAddSection" class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 py-3 text-sm font-medium text-zinc-400 transition-colors hover:border-orange-400 hover:text-orange-500 dark:border-zinc-600 dark:hover:border-orange-600">
+                        <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        {{ __('Add Section') }}
+                    </button>
+                    @endif
                 </div>
                 @endif
             </div>
@@ -394,41 +702,117 @@ new class extends Component {
         </div>
     </div>
 
-    {{-- Create/Edit Modal --}}
-    <flux:modal wire:model="showModal" class="max-w-lg">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ $editingStallId ? __('Edit Stall') : __('Add Stall') }}</flux:heading>
-                <flux:subheading>{{ $editingStallId ? __('Update stall details and assignment.') : __('Create a new stall.') }}</flux:subheading>
-            </div>
+    {{-- Create/Edit Modal — two-panel layout --}}
+    <flux:modal wire:model="showModal" class="w-full max-w-4xl !p-0 overflow-hidden">
+        <form wire:submit="save" class="flex min-h-[520px]">
 
-            <form wire:submit="save" class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <flux:input wire:model="formStallNumber" :label="__('Stall Number')" type="text" required placeholder="e.g. A-01" />
-                    <flux:input wire:model="formSection" :label="__('Section')" type="text" required placeholder="e.g. A" />
+            {{-- LEFT PANEL — Stall details --}}
+            <div class="flex flex-col w-full sm:w-5/12 border-r border-zinc-100 dark:border-zinc-700 p-6 gap-5">
+                <div>
+                    <flux:heading size="lg">{{ $editingStallId ? __('Edit Stall') : __('Add Stall') }}</flux:heading>
+                    <flux:subheading class="mt-0.5">{{ __('Stall details') }}</flux:subheading>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <flux:input wire:model="formSize" :label="__('Size')" type="text" required placeholder="e.g. 3x3m" />
-                    <flux:input wire:model="formMonthlyRate" :label="__('Monthly Rate (₱)')" type="number" required step="0.01" />
+
+                <div class="grid grid-cols-2 gap-3 flex-1">
+                    <flux:input wire:model="formStallNumber" :label="__('Stall No.')" type="text" required placeholder="A-01" />
+                    <flux:input wire:model="formSection" :label="__('Section')" type="text" required placeholder="A" />
+                    <flux:input wire:model="formSize" :label="__('Size')" type="text" required placeholder="3x3m" />
+                    <flux:input wire:model="formMonthlyRate" :label="__('Rate (₱)')" type="number" required step="0.01" />
                 </div>
+
                 <flux:select wire:model.live="formStatus" :label="__('Status')">
                     <flux:select.option value="available">{{ __('Available') }}</flux:select.option>
                     <flux:select.option value="occupied">{{ __('Occupied') }}</flux:select.option>
                     <flux:select.option value="maintenance">{{ __('Maintenance') }}</flux:select.option>
                 </flux:select>
-                <flux:select wire:model.live="formVendorId" :label="__('Assign Vendor')">
-                    <flux:select.option :value="null">{{ __('— Unassigned —') }}</flux:select.option>
-                    @foreach($this->availableVendors as $vendor)
-                    <flux:select.option :value="$vendor->id">{{ $vendor->contact_name }} — {{ $vendor->business_name }}</flux:select.option>
-                    @endforeach
-                </flux:select>
 
-                <div class="flex justify-end gap-3 pt-2">
-                    <flux:button variant="ghost" wire:click="$set('showModal', false)">{{ __('Cancel') }}</flux:button>
-                    <flux:button variant="primary" type="submit">{{ $editingStallId ? __('Update Stall') : __('Create Stall') }}</flux:button>
+                {{-- Currently assigned preview --}}
+                <div class="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-3 text-sm">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-2">Assigned Vendor</p>
+                    @if($formVendorId)
+                        @php $sv = $this->availableVendors->firstWhere('id', $formVendorId); @endphp
+                        @if($sv)
+                            <p class="font-semibold text-zinc-800 dark:text-zinc-200">{{ $sv->contact_name }}</p>
+                            <p class="text-zinc-500 dark:text-zinc-400 text-xs">{{ $sv->business_name }} · {{ $sv->product_type }}</p>
+                            <p class="text-zinc-500 dark:text-zinc-400 text-xs mt-0.5">{{ $sv->contact_phone }}</p>
+                            <div class="mt-1.5">
+                                <flux:badge :color="$sv->permit_status->color()" size="sm">{{ $sv->permit_status->label() }}</flux:badge>
+                            </div>
+                        @endif
+                    @else
+                        <p class="text-zinc-400 italic text-xs">No vendor assigned</p>
+                    @endif
                 </div>
-            </form>
-        </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-700 mt-auto">
+                    <flux:button variant="ghost" type="button" wire:click="$set('showModal', false)">{{ __('Cancel') }}</flux:button>
+                    <flux:button variant="primary" type="submit">{{ $editingStallId ? __('Update') : __('Create') }}</flux:button>
+                </div>
+            </div>
+
+            {{-- RIGHT PANEL — Vendor picker --}}
+            <div class="flex flex-col w-full sm:w-7/12 bg-zinc-50 dark:bg-zinc-900/50"
+                 x-data="{ search: '' }">
+
+                <div class="px-5 pt-5 pb-3 border-b border-zinc-100 dark:border-zinc-700">
+                    <p class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">{{ __('Assign Vendor') }}</p>
+                    <input
+                        x-model="search"
+                        type="text"
+                        placeholder="Search by name, business, or product…"
+                        class="w-full rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                    />
+                </div>
+
+                <ul class="flex-1 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-700/60" style="max-height: 420px;">
+
+                    {{-- Unassigned row --}}
+                    <li
+                        x-show="search === '' || 'unassigned'.includes(search.toLowerCase())"
+                        wire:click="$set('formVendorId', null)"
+                        class="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-orange-50 dark:hover:bg-zinc-800 transition-colors {{ $formVendorId === null ? 'bg-orange-50 dark:bg-zinc-800' : '' }}"
+                    >
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-700 shrink-0">
+                            <svg class="h-4 w-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-zinc-500 dark:text-zinc-400">— Unassigned —</p>
+                        </div>
+                        @if($formVendorId === null)
+                        <svg class="h-4 w-4 text-orange-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                        @endif
+                    </li>
+
+                    @foreach($this->availableVendors as $vendor)
+                    <li
+                        data-vendor="{{ strtolower($vendor->contact_name . ' ' . $vendor->business_name . ' ' . $vendor->product_type) }}"
+                        x-show="search === '' || $el.dataset.vendor.includes(search.toLowerCase())"
+                        wire:click="$set('formVendorId', {{ $vendor->id }})"
+                        class="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-orange-50 dark:hover:bg-zinc-800 transition-colors {{ $formVendorId == $vendor->id ? 'bg-orange-50 dark:bg-zinc-800' : '' }}"
+                    >
+                        {{-- Avatar initials --}}
+                        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-xs font-bold shrink-0">
+                            {{ strtoupper(substr($vendor->contact_name, 0, 1)) }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{{ $vendor->contact_name }}</p>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400 truncate">{{ $vendor->business_name }} · {{ $vendor->product_type }}</p>
+                        </div>
+                        <flux:badge :color="$vendor->permit_status->color()" size="sm" class="shrink-0">{{ $vendor->permit_status->label() }}</flux:badge>
+                        @if($formVendorId == $vendor->id)
+                        <svg class="h-4 w-4 text-orange-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                        @endif
+                    </li>
+                    @endforeach
+
+                    <li x-show="search !== ''" class="px-5 py-3 text-sm text-zinc-400 italic hidden"
+                        x-init="$watch('search', v => { const visible = $el.closest('ul').querySelectorAll('li[data-vendor]'); const any = Array.from(visible).some(el => el.style.display !== 'none'); $el.style.display = (v !== '' && !any) ? 'block' : 'none'; })">
+                        No vendors match your search.
+                    </li>
+                </ul>
+            </div>
+
+        </form>
     </flux:modal>
 
     {{-- Delete Confirmation Modal --}}

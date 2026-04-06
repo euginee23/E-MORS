@@ -44,5 +44,10 @@
         </div>
         @fluxScripts
         @stack('scripts')
+
+        {{-- Global UI: loading bar, confirm modal, toast --}}
+        <x-loading-bar />
+        <x-confirm-modal />
+        <x-toast />
     </body>
 </html>

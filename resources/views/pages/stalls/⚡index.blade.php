@@ -3,7 +3,6 @@
 use App\Enums\StallStatus;
 use App\Models\Stall;
 use App\Models\Vendor;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -284,7 +283,46 @@ new class extends Component {
 
     public function generateSampleMap(): void
     {
-        Artisan::call('db:seed', ['--class' => 'StallSeeder', '--force' => true]);
+        $marketId = $this->marketId;
+
+        if (! $marketId) {
+            $this->dispatch('toast', message: 'No market assigned to your account.', type: 'error');
+            return;
+        }
+
+        $sections = [
+            'A' => ['count' => 15, 'defaultSize' => '3x3m', 'defaultRate' => 3000.00],
+            'B' => ['count' => 15, 'defaultSize' => '3x3m', 'defaultRate' => 3500.00],
+            'C' => ['count' => 15, 'defaultSize' => '3x3m', 'defaultRate' => 3500.00],
+            'D' => ['count' => 15, 'defaultSize' => '3x3m', 'defaultRate' => 2500.00],
+        ];
+
+        $maintenanceStalls = ['A-07', 'B-05', 'C-10', 'D-03'];
+
+        foreach ($sections as $section => $config) {
+            for ($i = 1; $i <= $config['count']; $i++) {
+                $stallNumber = $section . '-' . str_pad($i, 2, '0', STR_PAD_LEFT);
+
+                $status = in_array($stallNumber, $maintenanceStalls)
+                    ? StallStatus::Maintenance
+                    : StallStatus::Available;
+
+                Stall::updateOrCreate(
+                    [
+                        'market_id'    => $marketId,
+                        'stall_number' => $stallNumber,
+                    ],
+                    [
+                        'vendor_id'    => null,
+                        'section'      => $section,
+                        'size'         => $config['defaultSize'],
+                        'monthly_rate' => $config['defaultRate'],
+                        'status'       => $status,
+                    ],
+                );
+            }
+        }
+
         $this->dispatch('toast', message: 'Sample stall map generated successfully.', type: 'success');
         $this->clearCache();
     }

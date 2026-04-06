@@ -1,13 +1,12 @@
 {{--
     Global Loading Bar Component
     Automatically shows during any Livewire network request.
-    Uses wire:loading directive via Alpine polling on Livewire's status.
+    Uses Livewire.hook() API to track request/response lifecycle.
 --}}
 <div
     x-data="{ loading: false }"
-    x-on:livewire:request.document="loading = true"
-    x-on:livewire:response.document="loading = false"
-    x-on:livewire:exception.document="loading = false"
+    x-on:livewire-loading-start.window="loading = true"
+    x-on:livewire-loading-end.window="loading = false"
     class="fixed top-0 left-0 right-0 z-[10000] pointer-events-none"
     aria-hidden="true"
 >
@@ -37,9 +36,8 @@
 {{-- Floating spinner for longer operations --}}
 <div
     x-data="{ loading: false, slow: false, timer: null }"
-    x-on:livewire:request.document="loading = true; timer = setTimeout(() => slow = true, 600)"
-    x-on:livewire:response.document="loading = false; slow = false; clearTimeout(timer)"
-    x-on:livewire:exception.document="loading = false; slow = false; clearTimeout(timer)"
+    x-on:livewire-loading-start.window="loading = true; timer = setTimeout(() => slow = true, 600)"
+    x-on:livewire-loading-end.window="loading = false; slow = false; clearTimeout(timer)"
     class="fixed bottom-5 left-5 z-[9998] pointer-events-none"
     aria-hidden="true"
 >
@@ -61,3 +59,31 @@
         <span class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Loading…') }}</span>
     </div>
 </div>
+
+{{-- Hook into Livewire's request lifecycle to dispatch loading events --}}
+<script>
+    document.addEventListener('livewire:init', () => {
+        let activeRequests = 0;
+
+        Livewire.hook('request', ({ respond, fail }) => {
+            activeRequests++;
+            if (activeRequests === 1) {
+                window.dispatchEvent(new CustomEvent('livewire-loading-start'));
+            }
+
+            respond(() => {
+                activeRequests = Math.max(0, activeRequests - 1);
+                if (activeRequests === 0) {
+                    window.dispatchEvent(new CustomEvent('livewire-loading-end'));
+                }
+            });
+
+            fail(() => {
+                activeRequests = Math.max(0, activeRequests - 1);
+                if (activeRequests === 0) {
+                    window.dispatchEvent(new CustomEvent('livewire-loading-end'));
+                }
+            });
+        });
+    });
+</script>

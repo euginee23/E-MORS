@@ -8,6 +8,7 @@ use App\Models\Collection;
 use App\Models\Vendor;
 use App\Models\VendorNotice;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class GenerateVendorNotices
@@ -160,9 +161,23 @@ class GenerateVendorNotices
                 continue;
             }
 
-            Mail::to($user->email)->queue(new VendorComplianceNotice($user, $vendor, $vendorNotices));
-            $stats['emails_sent'] += $vendorNotices->count();
-            $stats['vendors_notified']++;
+            try {
+                // Send synchronously so notice delivery does not depend on queue workers in production.
+                Mail::to($user->email)->send(new VendorComplianceNotice($user, $vendor, $vendorNotices));
+                $stats['emails_sent'] += $vendorNotices->count();
+                $stats['vendors_notified']++;
+            } catch (\Throwable $e) {
+                $stats['emails_skipped'] += $vendorNotices->count();
+
+                Log::error('Failed to send vendor compliance notice email.', [
+                    'vendor_id' => $vendor->id,
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'error' => $e->getMessage(),
+                ]);
+
+                continue;
+            }
 
             VendorNotice::whereIn('id', $vendorNotices->pluck('id')->all())->get()->each(function (VendorNotice $notice) {
                 $notice->update([

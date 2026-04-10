@@ -8,12 +8,11 @@ use App\Models\Collection;
 use App\Models\Vendor;
 use App\Models\VendorNotice;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Mail;
 
 class GenerateVendorNotices
 {
-    public function execute(?int $marketId = null, ?int $vendorId = null, bool $sendEmails = true, int $pendingDays = 7): array
+    public function execute(?int $marketId = null, ?int $vendorId = null, bool $sendEmails = true): array
     {
         $today = Carbon::now()->startOfDay();
 
@@ -26,36 +25,26 @@ class GenerateVendorNotices
             'vendors_notified' => 0,
         ];
 
-        $paymentNoticeIds = $this->upsertPaymentNotices($today, $marketId, $vendorId, $pendingDays, $stats);
+        $paymentNoticeIds = $this->upsertPaymentNotices($today, $marketId, $vendorId, $stats);
         $permitNoticeIds = $this->upsertPermitNotices($today, $marketId, $vendorId, $stats);
-
-        $this->resolveClosedIssues($today, $marketId, $vendorId, $pendingDays, $stats);
 
         if (! $sendEmails) {
             $stats['eligible_notices'] = count($paymentNoticeIds) + count($permitNoticeIds);
             return $stats;
         }
 
-        $this->sendDailyNotices($today, $marketId, $vendorId, $stats);
+        $this->sendNotices($marketId, $vendorId, $stats);
 
         return $stats;
     }
 
-    private function upsertPaymentNotices(Carbon $today, ?int $marketId, ?int $vendorId, int $pendingDays, array &$stats): array
+    private function upsertPaymentNotices(Carbon $today, ?int $marketId, ?int $vendorId, array &$stats): array
     {
-        $cutoffDate = $today->copy()->subDays($pendingDays);
-
         $collections = Collection::query()
             ->with(['vendor.user'])
             ->when($marketId, fn ($q) => $q->where('market_id', $marketId))
             ->when($vendorId, fn ($q) => $q->where('vendor_id', $vendorId))
-            ->where(function ($q) use ($cutoffDate) {
-                $q->where('status', PaymentStatus::Overdue)
-                    ->orWhere(function ($q2) use ($cutoffDate) {
-                        $q2->where('status', PaymentStatus::Pending)
-                            ->whereDate('payment_date', '<=', $cutoffDate->toDateString());
-                    });
-            })
+            ->whereIn('status', [PaymentStatus::Pending, PaymentStatus::Overdue])
             ->get();
 
         $ids = [];
@@ -105,8 +94,13 @@ class GenerateVendorNotices
             ->with('user')
             ->when($marketId, fn ($q) => $q->where('market_id', $marketId))
             ->when($vendorId, fn ($q) => $q->where('id', $vendorId))
-            ->whereNotNull('permit_expiry')
-            ->whereDate('permit_expiry', '<', $today->toDateString())
+            ->where(function ($q) use ($today) {
+                $q->where('permit_status', '!=', 'active')
+                    ->orWhere(function ($q2) use ($today) {
+                        $q2->whereNotNull('permit_expiry')
+                            ->whereDate('permit_expiry', '<', $today->toDateString());
+                    });
+            })
             ->get();
 
         $ids = [];
@@ -146,61 +140,13 @@ class GenerateVendorNotices
         return $ids;
     }
 
-    private function resolveClosedIssues(Carbon $today, ?int $marketId, ?int $vendorId, int $pendingDays, array &$stats): void
-    {
-        $openNotices = VendorNotice::query()
-            ->with(['vendor', 'collection'])
-            ->whereNull('resolved_at')
-            ->when($marketId, fn ($q) => $q->where('market_id', $marketId))
-            ->when($vendorId, fn ($q) => $q->where('vendor_id', $vendorId))
-            ->get();
-
-        $cutoffDate = $today->copy()->subDays($pendingDays);
-
-        foreach ($openNotices as $notice) {
-            $shouldResolve = false;
-
-            if ($notice->notice_type === 'payment_overdue') {
-                $collection = $notice->collection;
-                if (! $collection) {
-                    $shouldResolve = true;
-                } else {
-                    $isOverdue = $collection->status === PaymentStatus::Overdue;
-                    $isOldPending = $collection->status === PaymentStatus::Pending
-                        && $collection->payment_date
-                        && Carbon::parse($collection->payment_date)->lte($cutoffDate);
-
-                    $shouldResolve = ! $isOverdue && ! $isOldPending;
-                }
-            }
-
-            if ($notice->notice_type === 'permit_expired') {
-                $vendor = $notice->vendor;
-                $permitExpired = $vendor
-                    && $vendor->permit_expiry
-                    && Carbon::parse($vendor->permit_expiry)->lt($today);
-
-                $shouldResolve = ! $permitExpired;
-            }
-
-            if ($shouldResolve) {
-                $notice->update(['resolved_at' => now()]);
-                $stats['resolved']++;
-            }
-        }
-    }
-
-    private function sendDailyNotices(Carbon $today, ?int $marketId, ?int $vendorId, array &$stats): void
+    private function sendNotices(?int $marketId, ?int $vendorId, array &$stats): void
     {
         $noticesByVendor = VendorNotice::query()
             ->with(['vendor.user', 'collection'])
             ->whereNull('resolved_at')
             ->when($marketId, fn ($q) => $q->where('market_id', $marketId))
             ->when($vendorId, fn ($q) => $q->where('vendor_id', $vendorId))
-            ->where(function ($q) use ($today) {
-                $q->whereNull('last_sent_at')
-                    ->orWhereDate('last_sent_at', '<', $today->toDateString());
-            })
             ->orderBy('vendor_id')
             ->get()
             ->groupBy('vendor_id');

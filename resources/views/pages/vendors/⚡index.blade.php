@@ -234,7 +234,6 @@ new class extends Component {
             marketId: $this->marketId,
             vendorId: null,
             sendEmails: true,
-            pendingDays: 7,
         );
 
         $this->dispatch(
@@ -252,7 +251,6 @@ new class extends Component {
             marketId: $this->marketId,
             vendorId: $vendor->id,
             sendEmails: true,
-            pendingDays: 7,
         );
 
         if ($summary['vendors_notified'] > 0) {
@@ -260,7 +258,7 @@ new class extends Component {
             return;
         }
 
-        $this->dispatch('toast', message: "No active overdue or expired issue found for {$vendor->contact_name}.", type: 'info');
+        $this->dispatch('toast', message: "No outstanding issues found for {$vendor->contact_name}.", type: 'info');
     }
 
     public function render()

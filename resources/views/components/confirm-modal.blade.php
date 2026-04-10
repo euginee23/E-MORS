@@ -13,6 +13,7 @@
 <div
     x-data="{
         show: false,
+        processing: false,
         title: '',
         message: '',
         confirmLabel: 'Confirm',
@@ -24,13 +25,23 @@
             this.confirmLabel= data.confirm     ?? 'Confirm';
             this.variant     = data.variant     ?? 'danger';
             this.onConfirm   = data.onConfirm   ?? null;
+            this.processing  = false;
             this.show = true;
         },
-        confirm() {
-            if (this.onConfirm) this.onConfirm();
+        async confirm() {
+            if (this.processing) return;
+
+            this.processing = true;
+
+            if (this.onConfirm) {
+                await this.onConfirm();
+            }
+
             this.show = false;
+            this.processing = false;
         },
         cancel() {
+            if (this.processing) return;
             this.show = false;
         }
     }"
@@ -106,21 +117,33 @@
                     <button
                         type="button"
                         x-on:click="cancel()"
+                        x-bind:disabled="processing"
                         class="inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 transition-colors dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                        :class="{ 'cursor-not-allowed opacity-60': processing }"
                     >
                         {{ __('Cancel') }}
                     </button>
                     <button
                         type="button"
                         x-on:click="confirm()"
+                        x-bind:disabled="processing"
                         class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
                         :class="{
                             'bg-red-600 hover:bg-red-700 focus:ring-red-500': variant === 'danger',
                             'bg-amber-500 hover:bg-amber-600 focus:ring-amber-400': variant === 'warning',
                             'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500': variant === 'primary' || variant === 'info',
+                            'cursor-not-allowed opacity-80': processing,
                         }"
-                        x-text="confirmLabel"
-                    ></button>
+                    >
+                        <span x-show="!processing" x-text="confirmLabel"></span>
+                        <span x-show="processing" class="inline-flex items-center gap-2">
+                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                            </svg>
+                            {{ __('Processing...') }}
+                        </span>
+                    </button>
                 </div>
             </div>
         </div>

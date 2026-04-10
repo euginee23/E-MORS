@@ -169,11 +169,27 @@ new class extends Component {
             <div class="flex-1">
                 <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="{{ __('Search by name, business, or email…') }}" />
             </div>
+            <div wire:loading.inline-flex class="hidden items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-medium text-orange-700 dark:border-orange-700/60 dark:bg-orange-900/30 dark:text-orange-300">
+                <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                {{ __('Loading...') }}
+            </div>
         </div>
 
         {{-- Table --}}
         <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-            <div class="overflow-x-auto">
+            <div class="relative overflow-x-auto">
+                <div wire:loading.flex class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center bg-white/60 dark:bg-zinc-900/60">
+                    <div class="inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm font-medium text-orange-700 shadow-sm dark:border-orange-700/60 dark:bg-zinc-800 dark:text-orange-300">
+                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        {{ __('Loading applications...') }}
+                    </div>
+                </div>
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b border-orange-100 text-left dark:border-zinc-700">
@@ -212,8 +228,15 @@ new class extends Component {
                             </td>
                             <td class="px-6 py-3 text-zinc-500 dark:text-zinc-400">{{ $vendor->created_at->format('M j, Y') }}</td>
                             <td class="px-6 py-3">
-                                <flux:button size="sm" variant="primary" wire:click="openAssignModal({{ $vendor->id }})">
-                                    {{ __('Assign Stall') }}
+                                <flux:button size="sm" variant="primary" wire:click="openAssignModal({{ $vendor->id }})" wire:loading.attr="disabled" wire:target="openAssignModal">
+                                    <span wire:loading.remove wire:target="openAssignModal">{{ __('Assign Stall') }}</span>
+                                    <span wire:loading wire:target="openAssignModal" class="inline-flex items-center gap-1.5">
+                                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                        </svg>
+                                        {{ __('Opening...') }}
+                                    </span>
                                 </flux:button>
                             </td>
                         </tr>
@@ -248,7 +271,7 @@ new class extends Component {
 
             <form wire:submit="assignStall" class="space-y-4">
                 <div>
-                    <flux:select wire:model="selectedStallId" :label="__('Available Stalls')">
+                    <flux:select wire:model="selectedStallId" :label="__('Available Stalls')" wire:loading.attr="disabled" wire:target="assignStall">
                         <flux:select.option value="">{{ __('Select a stall…') }}</flux:select.option>
                         @foreach($this->availableStalls as $stall)
                         <flux:select.option :value="$stall->id">
@@ -266,9 +289,16 @@ new class extends Component {
                 </div>
 
                 <div class="flex justify-end gap-3 pt-2">
-                    <flux:button variant="ghost" wire:click="$set('showAssignModal', false)">{{ __('Cancel') }}</flux:button>
-                    <flux:button variant="primary" type="submit" :disabled="$this->availableStalls->isEmpty()">
-                        {{ __('Assign & Notify') }}
+                    <flux:button variant="ghost" wire:click="$set('showAssignModal', false)" wire:loading.attr="disabled" wire:target="assignStall">{{ __('Cancel') }}</flux:button>
+                    <flux:button variant="primary" type="submit" :disabled="$this->availableStalls->isEmpty()" wire:loading.attr="disabled" wire:target="assignStall">
+                        <span wire:loading.remove wire:target="assignStall">{{ __('Assign & Notify') }}</span>
+                        <span wire:loading wire:target="assignStall" class="inline-flex items-center gap-1.5">
+                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                            </svg>
+                            {{ __('Assigning...') }}
+                        </span>
                     </flux:button>
                 </div>
             </form>

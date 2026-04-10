@@ -456,7 +456,16 @@ new class extends Component {
                     </div>
                 </div>
             </div>
-            <div class="p-6">
+            <div class="relative p-6">
+                <div wire:loading.flex wire:target="save,deleteStall,quickSaveStall,saveSection,generateSampleMap,createSection,unassignVendor" class="pointer-events-none absolute inset-0 z-30 hidden items-center justify-center rounded-b-2xl bg-white/70 dark:bg-zinc-900/70">
+                    <div class="inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm font-medium text-orange-700 shadow-sm dark:border-orange-700/60 dark:bg-zinc-800 dark:text-orange-300">
+                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        {{ __('Updating stall map...') }}
+                    </div>
+                </div>
                 @foreach($this->stallMap as $sectionKey => $sectionStalls)
                 <div class="mb-6" wire:key="section-{{ $sectionKey }}">
                     {{-- Section header with inline rename --}}
@@ -464,8 +473,17 @@ new class extends Component {
                     <div class="mb-2 flex items-center gap-2">
                         <input wire:model="editingSectionName" wire:keydown.enter="saveSection" wire:keydown.escape="cancelEditSection" type="text" maxlength="5" class="w-32 rounded-lg border border-orange-400 bg-white px-3 py-1.5 text-sm font-semibold uppercase tracking-wider shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:bg-zinc-800 dark:text-zinc-200" />
                         @error('editingSectionName') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
-                        <button wire:click="saveSection" class="cursor-pointer rounded-md bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600">{{ __('Save') }}</button>
-                        <button wire:click="cancelEditSection" class="cursor-pointer rounded-md border border-zinc-300 px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:border-zinc-600 dark:hover:bg-zinc-800">{{ __('Cancel') }}</button>
+                        <button type="button" wire:click="saveSection" wire:loading.attr="disabled" wire:target="saveSection" class="cursor-pointer rounded-md bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70">
+                            <span wire:loading.remove wire:target="saveSection">{{ __('Save') }}</span>
+                            <span wire:loading wire:target="saveSection" class="inline-flex items-center gap-1.5">
+                                <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                </svg>
+                                {{ __('Saving...') }}
+                            </span>
+                        </button>
+                        <button type="button" wire:click="cancelEditSection" wire:loading.attr="disabled" wire:target="saveSection" class="cursor-pointer rounded-md border border-zinc-300 px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-600 dark:hover:bg-zinc-800">{{ __('Cancel') }}</button>
                     </div>
                     @else
                     <div class="mb-2 flex items-center gap-1.5">
@@ -522,10 +540,19 @@ new class extends Component {
                                 <button
                                     @click="open = false"
                                     wire:click="unassignVendor({{ $stall['id'] }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="unassignVendor"
                                     class="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700/50"
                                 >
                                     <svg class="size-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zm5-7l5 5m0-5l-5 5"/></svg>
-                                    {{ __('Unassign vendor') }}
+                                    <span wire:loading.remove wire:target="unassignVendor">{{ __('Unassign vendor') }}</span>
+                                    <span wire:loading wire:target="unassignVendor" class="inline-flex items-center gap-1.5">
+                                        <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                        </svg>
+                                        {{ __('Unassigning...') }}
+                                    </span>
                                 </button>
                                 @endif
                                 <div class="my-1 border-t border-zinc-100 dark:border-zinc-700"></div>
@@ -543,7 +570,13 @@ new class extends Component {
                         {{-- + stall box --}}
                         @if($addingStallSection !== $sectionKey)
                         <flux:tooltip :content="__('Add stall to Section :s', ['s' => $sectionKey])">
-                            <button wire:click="openInlineAddStall('{{ $sectionKey }}')" class="flex aspect-square w-full cursor-pointer items-center justify-center rounded border-2 border-dashed border-zinc-300 text-lg font-light text-zinc-400 transition-colors hover:border-orange-400 hover:text-orange-500 dark:border-zinc-600">+</button>
+                            <button wire:click="openInlineAddStall('{{ $sectionKey }}')" wire:loading.attr="disabled" wire:target="openInlineAddStall" class="flex aspect-square w-full cursor-pointer items-center justify-center rounded border-2 border-dashed border-zinc-300 text-lg font-light text-zinc-400 transition-colors hover:border-orange-400 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-600">
+                                <span wire:loading.remove wire:target="openInlineAddStall">+</span>
+                                <svg wire:loading wire:target="openInlineAddStall" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                </svg>
+                            </button>
                         </flux:tooltip>
                         @endif
                     </div>
@@ -567,8 +600,17 @@ new class extends Component {
                                 <input wire:model="inlineRate" type="number" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="3500" />
                             </div>
                             <div class="flex items-end gap-2">
-                                <button wire:click="quickSaveStall" class="cursor-pointer rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600">{{ __('Add') }}</button>
-                                <button wire:click="cancelInlineAdd" class="cursor-pointer rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{{ __('Cancel') }}</button>
+                                <button wire:click="quickSaveStall" wire:loading.attr="disabled" wire:target="quickSaveStall" class="cursor-pointer rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70">
+                                    <span wire:loading.remove wire:target="quickSaveStall">{{ __('Add') }}</span>
+                                    <span wire:loading wire:target="quickSaveStall" class="inline-flex items-center gap-1.5">
+                                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                        </svg>
+                                        {{ __('Adding...') }}
+                                    </span>
+                                </button>
+                                <button wire:click="cancelInlineAdd" wire:loading.attr="disabled" wire:target="quickSaveStall" class="cursor-pointer rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{{ __('Cancel') }}</button>
                             </div>
                         </div>
                     </div>
@@ -597,8 +639,17 @@ new class extends Component {
                                 <input wire:model="inlineRate" type="number" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="3500" />
                             </div>
                             <div class="flex items-end gap-2">
-                                <button wire:click="quickSaveStall" class="cursor-pointer rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600">{{ __('Add') }}</button>
-                                <button wire:click="cancelInlineAdd" class="cursor-pointer rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{{ __('Cancel') }}</button>
+                                <button wire:click="quickSaveStall" wire:loading.attr="disabled" wire:target="quickSaveStall" class="cursor-pointer rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70">
+                                    <span wire:loading.remove wire:target="quickSaveStall">{{ __('Add') }}</span>
+                                    <span wire:loading wire:target="quickSaveStall" class="inline-flex items-center gap-1.5">
+                                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                        </svg>
+                                        {{ __('Adding...') }}
+                                    </span>
+                                </button>
+                                <button wire:click="cancelInlineAdd" wire:loading.attr="disabled" wire:target="quickSaveStall" class="cursor-pointer rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{{ __('Cancel') }}</button>
                             </div>
                         </div>
                     </div>
@@ -619,9 +670,16 @@ new class extends Component {
                             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             {{ __('Add a Section') }}
                         </button>
-                        <button wire:click="generateSampleMap" class="cursor-pointer flex items-center gap-2 rounded-xl border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
+                        <button wire:click="generateSampleMap" wire:loading.attr="disabled" wire:target="generateSampleMap" class="cursor-pointer flex items-center gap-2 rounded-xl border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
                             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                            {{ __('Generate Sample Map') }}
+                            <span wire:loading.remove wire:target="generateSampleMap">{{ __('Generate Sample Map') }}</span>
+                            <span wire:loading wire:target="generateSampleMap" class="inline-flex items-center gap-1.5">
+                                <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                </svg>
+                                {{ __('Generating...') }}
+                            </span>
                         </button>
                     </div>
                 </div>
@@ -640,8 +698,17 @@ new class extends Component {
                                 @error('newSectionLetter') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
                             <div class="flex items-end gap-2">
-                                <button wire:click="createSection" class="cursor-pointer rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600">{{ __('Create') }}</button>
-                                <button wire:click="cancelInlineAdd" class="cursor-pointer rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{{ __('Cancel') }}</button>
+                                <button wire:click="createSection" wire:loading.attr="disabled" wire:target="createSection" class="cursor-pointer rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70">
+                                    <span wire:loading.remove wire:target="createSection">{{ __('Create') }}</span>
+                                    <span wire:loading wire:target="createSection" class="inline-flex items-center gap-1.5">
+                                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                        </svg>
+                                        {{ __('Creating...') }}
+                                    </span>
+                                </button>
+                                <button wire:click="cancelInlineAdd" wire:loading.attr="disabled" wire:target="createSection" class="cursor-pointer rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-600 shadow-sm transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{{ __('Cancel') }}</button>
                             </div>
                         </div>
                     </div>
@@ -662,6 +729,13 @@ new class extends Component {
                 <div class="flex items-center justify-between">
                     <flux:heading size="lg">{{ __('Stall Directory') }}</flux:heading>
                     <div class="flex gap-2">
+                        <div wire:loading.inline-flex class="hidden items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2 py-1 text-xs font-medium text-orange-700 dark:border-orange-700/60 dark:bg-orange-900/30 dark:text-orange-300">
+                            <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                            </svg>
+                            {{ __('Loading...') }}
+                        </div>
                         <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" size="sm" placeholder="{{ __('Search stalls...') }}" />
                         <flux:select wire:model.live="sectionFilter" size="sm" class="w-32">
                             <flux:select.option value="all">{{ __('All') }}</flux:select.option>
@@ -672,7 +746,16 @@ new class extends Component {
                     </div>
                 </div>
             </div>
-            <div class="overflow-x-auto">
+            <div class="relative overflow-x-auto">
+                <div wire:loading.flex class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center bg-white/60 dark:bg-zinc-900/60">
+                    <div class="inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm font-medium text-orange-700 shadow-sm dark:border-orange-700/60 dark:bg-zinc-800 dark:text-orange-300">
+                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        {{ __('Loading stalls...') }}
+                    </div>
+                </div>
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b border-orange-100 text-left dark:border-zinc-700">
@@ -700,7 +783,16 @@ new class extends Component {
                                 <flux:dropdown>
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
                                     <flux:menu>
-                                        <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $stall->id }})">{{ __('Edit') }}</flux:menu.item>
+                                        <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $stall->id }})" wire:loading.attr="disabled" wire:target="openEditModal">
+                                            <span wire:loading.remove wire:target="openEditModal">{{ __('Edit') }}</span>
+                                            <span wire:loading wire:target="openEditModal" class="inline-flex items-center gap-1.5">
+                                                <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                                </svg>
+                                                {{ __('Opening...') }}
+                                            </span>
+                                        </flux:menu.item>
                                         <flux:menu.separator />
                                         <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Stall', message: 'Are you sure you want to delete stall {{ $stall->stall_number }}? This cannot be undone.', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteStall({{ $stall->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>
@@ -766,8 +858,17 @@ new class extends Component {
                 </div>
 
                 <div class="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-700 mt-auto">
-                    <flux:button variant="ghost" type="button" wire:click="$set('showModal', false)">{{ __('Cancel') }}</flux:button>
-                    <flux:button variant="primary" type="submit">{{ $editingStallId ? __('Update') : __('Create') }}</flux:button>
+                    <flux:button variant="ghost" type="button" wire:click="$set('showModal', false)" wire:loading.attr="disabled" wire:target="save">{{ __('Cancel') }}</flux:button>
+                    <flux:button variant="primary" type="submit" wire:loading.attr="disabled" wire:target="save">
+                        <span wire:loading.remove wire:target="save">{{ $editingStallId ? __('Update') : __('Create') }}</span>
+                        <span wire:loading wire:target="save" class="inline-flex items-center gap-1.5">
+                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                            </svg>
+                            {{ $editingStallId ? __('Updating...') : __('Creating...') }}
+                        </span>
+                    </flux:button>
                 </div>
             </div>
 

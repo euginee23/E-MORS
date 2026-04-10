@@ -29,6 +29,9 @@
                 <flux:navbar.item icon="shield-check" :href="route('users.index')" :current="request()->routeIs('users.*')" wire:navigate>
                     {{ __('Users') }}
                 </flux:navbar.item>
+                <flux:navbar.item icon="megaphone" :href="route('announcements.index')" :current="request()->routeIs('announcements.*')" wire:navigate>
+                    {{ __('Announcements') }}
+                </flux:navbar.item>
                 @endif
             </flux:navbar>
 
@@ -79,6 +82,9 @@
                 <flux:sidebar.group :heading="__('Administration')">
                     <flux:sidebar.item icon="shield-check" :href="route('users.index')" :current="request()->routeIs('users.*')" wire:navigate>
                         {{ __('Users & Access') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="megaphone" :href="route('announcements.index')" :current="request()->routeIs('announcements.*')" wire:navigate>
+                        {{ __('Announcements') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>
                 @endif

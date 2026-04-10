@@ -42,6 +42,9 @@
                     <a href="{{ route('users.index') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('users.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Users
                     </a>
+                    <a href="{{ route('announcements.index') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('announcements.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Announcements
+                    </a>
                     @elseif(auth()->user()->isCollector())
                     <a href="{{ route('collector.summary') }}" class="px-3 py-2 rounded-xl text-sm font-medium transition-colors {{ request()->routeIs('collector.summary') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Daily Summary
@@ -227,6 +230,9 @@
                     </a>
                     <a href="{{ route('users.index') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('users.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
                         Users
+                    </a>
+                    <a href="{{ route('announcements.index') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('announcements.*') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">
+                        Announcements
                     </a>
                     @elseif(auth()->user()->isCollector())
                     <a href="{{ route('collector.summary') }}" class="px-4 py-3 rounded-xl font-medium transition-colors {{ request()->routeIs('collector.summary') ? 'text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30' : 'text-zinc-600 dark:text-zinc-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-zinc-800' }}">

@@ -13,8 +13,11 @@ use App\Models\Vendor;
  */
 function createApprovedVendor(): User
 {
-    $user = User::factory()->create(['role' => UserRole::Vendor]);
     $market = Market::create(['name' => 'Test Market', 'address' => '123 Test St']);
+    $user = User::factory()->create([
+        'role' => UserRole::Vendor,
+        'market_id' => $market->id,
+    ]);
     $vendorProfile = Vendor::create([
         'market_id' => $market->id,
         'user_id' => $user->id,
@@ -44,6 +47,7 @@ test('admin can access admin pages', function () {
     $this->get(route('collections.index'))->assertOk();
     $this->get(route('reports.index'))->assertOk();
     $this->get(route('users.index'))->assertOk();
+    $this->get(route('announcements.create'))->assertOk();
 });
 
 test('vendor cannot access admin pages', function () {
@@ -56,6 +60,7 @@ test('vendor cannot access admin pages', function () {
     $this->get(route('collections.index'))->assertForbidden();
     $this->get(route('reports.index'))->assertForbidden();
     $this->get(route('users.index'))->assertForbidden();
+    $this->get(route('announcements.create'))->assertForbidden();
 });
 
 test('collector cannot access admin pages', function () {
@@ -68,6 +73,7 @@ test('collector cannot access admin pages', function () {
     $this->get(route('collections.index'))->assertForbidden();
     $this->get(route('reports.index'))->assertForbidden();
     $this->get(route('users.index'))->assertForbidden();
+    $this->get(route('announcements.create'))->assertForbidden();
 });
 
 // ─── Vendor Route Access ───

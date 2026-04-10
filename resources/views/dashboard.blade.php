@@ -273,6 +273,9 @@
                     <flux:button variant="subtle" class="w-full justify-start" icon="shield-check" :href="route('users.index')" wire:navigate>
                         {{ __('Manage Users') }}
                     </flux:button>
+                    <flux:button variant="subtle" class="w-full justify-start" icon="megaphone" :href="route('announcements.index')" wire:navigate>
+                        {{ __('Manage Announcements') }}
+                    </flux:button>
                     @elseif($user->isCollector())
                     <flux:button variant="subtle" class="w-full justify-start" icon="plus-circle" :href="route('collector.collect')" wire:navigate>
                         {{ __('Record Collection') }}

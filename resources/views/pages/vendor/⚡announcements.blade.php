@@ -35,10 +35,12 @@ new class extends Component {
     {
         $announcement = Announcement::where('market_id', $this->marketId)->findOrFail($announcementId);
 
-        if (! $announcement->isReadBy(Auth::user())) {
-            $announcement->readers()->attach(Auth::id(), ['read_at' => now()]);
-            unset($this->announcements, $this->unreadCount);
-        }
+        $announcement->readers()->syncWithoutDetaching([
+            Auth::id() => ['read_at' => now()],
+        ]);
+
+        $announcement->readers()->updateExistingPivot(Auth::id(), ['read_at' => now()]);
+        unset($this->announcements, $this->unreadCount);
     }
 
     public function render()
@@ -75,9 +77,9 @@ new class extends Component {
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div class="flex items-start gap-3">
                             @if($isUnread)
-                            <div class="mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-orange-500 animate-pulse"></div>
+                            <div class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-orange-500 animate-pulse"></div>
                             @else
-                            <div class="mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-600"></div>
+                            <div class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-600"></div>
                             @endif
                             <div>
                                 <h3 class="font-semibold {{ $isUnread ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300' }}">

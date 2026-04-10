@@ -32,6 +32,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::livewire('reports', 'pages::reports.index')->name('reports.index');
             Route::livewire('users', 'pages::users.index')->name('users.index');
             Route::livewire('announcements', 'pages::announcements.index')->name('announcements.index');
+            Route::livewire('announcements/create', 'pages::announcements.create')->name('announcements.create');
             Route::livewire('applications', 'pages::applications.index')->name('applications.index');
         });
 

@@ -192,9 +192,14 @@ new class extends Component {
                 <flux:heading size="xl">{{ __('Announcements') }}</flux:heading>
                 <flux:subheading class="mt-1">{{ __('Create and manage market-wide announcements for vendors.') }}</flux:subheading>
             </div>
-            <flux:button icon="plus" variant="primary" wire:click="openCreateModal">
-                {{ __('New Announcement') }}
-            </flux:button>
+            <div class="flex items-center gap-2">
+                <flux:button icon="plus" variant="primary" :href="route('announcements.create')" wire:navigate>
+                    {{ __('Create Page') }}
+                </flux:button>
+                <flux:button icon="sparkles" variant="ghost" wire:click="openCreateModal">
+                    {{ __('Quick Create') }}
+                </flux:button>
+            </div>
         </div>
 
         {{-- Stats Row --}}

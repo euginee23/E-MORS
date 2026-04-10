@@ -15,7 +15,7 @@ class GenerateVendorNotices
 {
     public function execute(?int $marketId = null, ?int $vendorId = null, bool $sendEmails = true, int $pendingDays = 7): array
     {
-        $today = now()->startOfDay();
+        $today = Carbon::now()->startOfDay();
 
         $stats = [
             'created' => 0,

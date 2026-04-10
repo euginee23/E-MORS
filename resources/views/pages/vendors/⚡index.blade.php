@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Notices\GenerateVendorNotices;
 use App\Enums\PermitStatus;
 use App\Mail\StallAssigned;
 use App\Models\Stall;
@@ -227,6 +228,41 @@ new class extends Component {
         $this->clearCache();
     }
 
+    public function generateNotices(): void
+    {
+        $summary = app(GenerateVendorNotices::class)->execute(
+            marketId: $this->marketId,
+            vendorId: null,
+            sendEmails: true,
+            pendingDays: 7,
+        );
+
+        $this->dispatch(
+            'toast',
+            message: "Notices generated. {$summary['created']} created, {$summary['vendors_notified']} vendor(s) notified.",
+            type: 'success'
+        );
+    }
+
+    public function generateVendorNotice(int $vendorId): void
+    {
+        $vendor = Vendor::where('market_id', $this->marketId)->findOrFail($vendorId);
+
+        $summary = app(GenerateVendorNotices::class)->execute(
+            marketId: $this->marketId,
+            vendorId: $vendor->id,
+            sendEmails: true,
+            pendingDays: 7,
+        );
+
+        if ($summary['vendors_notified'] > 0) {
+            $this->dispatch('toast', message: "Notice sent to {$vendor->contact_name}.", type: 'success');
+            return;
+        }
+
+        $this->dispatch('toast', message: "No active overdue or expired issue found for {$vendor->contact_name}.", type: 'info');
+    }
+
     public function render()
     {
         return $this->view()->title(__('Vendor Management'));
@@ -248,9 +284,21 @@ new class extends Component {
                 <flux:heading size="xl">{{ __('Vendor Management') }}</flux:heading>
                 <flux:subheading class="mt-1">{{ __('Manage vendor registrations, permits, and renewals.') }}</flux:subheading>
             </div>
-            <flux:button icon="plus" variant="primary" wire:click="openCreateModal">
-                {{ __('Add Vendor') }}
-            </flux:button>
+            <div class="flex gap-2">
+                <flux:button icon="bell-alert" variant="ghost" wire:click="generateNotices" wire:loading.attr="disabled" wire:target="generateNotices">
+                    <span wire:loading.remove wire:target="generateNotices">{{ __('Generate Notices') }}</span>
+                    <span wire:loading wire:target="generateNotices" class="inline-flex items-center gap-1.5">
+                        <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        {{ __('Generating...') }}
+                    </span>
+                </flux:button>
+                <flux:button icon="plus" variant="primary" wire:click="openCreateModal">
+                    {{ __('Add Vendor') }}
+                </flux:button>
+            </div>
         </div>
 
         {{-- Stats Row --}}
@@ -323,6 +371,16 @@ new class extends Component {
                                         @if($vendor->permit_status === \App\Enums\PermitStatus::Pending && !$vendor->stall)
                                         <flux:menu.item icon="building-storefront" wire:click="openAssignModal({{ $vendor->id }})">{{ __('Assign Stall') }}</flux:menu.item>
                                         @endif
+                                        <flux:menu.item icon="bell-alert" wire:click="generateVendorNotice({{ $vendor->id }})" wire:loading.attr="disabled" wire:target="generateVendorNotice">
+                                            <span wire:loading.remove wire:target="generateVendorNotice">{{ __('Generate Notice') }}</span>
+                                            <span wire:loading wire:target="generateVendorNotice" class="inline-flex items-center gap-1.5">
+                                                <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                                </svg>
+                                                {{ __('Sending...') }}
+                                            </span>
+                                        </flux:menu.item>
                                         <flux:menu.separator />
                                         <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Vendor', message: 'Are you sure you want to delete {{ $vendor->contact_name }}? This will also unassign their stall.', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteVendor({{ $vendor->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>

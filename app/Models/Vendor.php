@@ -54,4 +54,9 @@ class Vendor extends Model
     {
         return $this->hasMany(Collection::class);
     }
+
+    public function notices(): HasMany
+    {
+        return $this->hasMany(VendorNotice::class);
+    }
 }

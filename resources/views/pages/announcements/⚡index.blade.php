@@ -1,8 +1,11 @@
 <?php
 
 use App\Enums\AnnouncementCategory;
+use App\Mail\AnnouncementBroadcast;
 use App\Models\Announcement;
+use App\Models\Vendor;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -122,6 +125,37 @@ new class extends Component {
         $this->clearCache();
     }
 
+    public function sendAnnouncement(int $id): void
+    {
+        $announcement = Announcement::where('market_id', $this->marketId)->findOrFail($id);
+
+        if (! $announcement->published_at) {
+            $this->dispatch('toast', message: 'Only published announcements can be sent.', type: 'warning');
+            return;
+        }
+
+        $vendors = Vendor::where('market_id', $this->marketId)
+            ->with('user')
+            ->whereNotNull('user_id')
+            ->get();
+
+        $sent = 0;
+
+        foreach ($vendors as $vendor) {
+            if (! $vendor->user || ! $vendor->user->email) {
+                continue;
+            }
+
+            Mail::to($vendor->user->email)->queue(
+                new AnnouncementBroadcast($vendor->user, $vendor, $announcement)
+            );
+
+            $sent++;
+        }
+
+        $this->dispatch('toast', message: "Announcement sent to {$sent} vendor(s).", type: 'success');
+    }
+
     private function resetForm(): void
     {
         $this->editingId = null;
@@ -227,6 +261,16 @@ new class extends Component {
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
                                     <flux:menu>
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $announcement->id }})">{{ __('Edit') }}</flux:menu.item>
+                                        <flux:menu.item icon="paper-airplane" wire:click="sendAnnouncement({{ $announcement->id }})" wire:loading.attr="disabled" wire:target="sendAnnouncement">
+                                            <span wire:loading.remove wire:target="sendAnnouncement">{{ __('Send to Vendors') }}</span>
+                                            <span wire:loading wire:target="sendAnnouncement" class="inline-flex items-center gap-1.5">
+                                                <svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                                </svg>
+                                                {{ __('Sending...') }}
+                                            </span>
+                                        </flux:menu.item>
                                         <flux:menu.separator />
                                         <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Announcement', message: 'Are you sure you want to delete this announcement?', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteAnnouncement({{ $announcement->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>

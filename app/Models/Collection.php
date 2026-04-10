@@ -6,6 +6,7 @@ use App\Enums\PaymentStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Collection extends Model
 {
@@ -51,6 +52,11 @@ class Collection extends Model
     public function collector(): BelongsTo
     {
         return $this->belongsTo(User::class, 'collector_id');
+    }
+
+    public function notices(): HasMany
+    {
+        return $this->hasMany(VendorNotice::class);
     }
 
     public static function generateReceiptNumber(int $marketId): string

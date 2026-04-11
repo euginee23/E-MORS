@@ -36,6 +36,7 @@ class EnsureVendorIsApproved
             // Keep vendor status aligned once a stall is assigned.
             if ($hasAssignedStall && $vendor->permit_status !== PermitStatus::Active) {
                 $vendor->update(['permit_status' => PermitStatus::Active]);
+                $vendor->refresh();
             }
 
             $isApproved = $vendor

@@ -42,6 +42,8 @@ new class extends Component {
             'address' => ['required', 'string', 'max:500'],
             'business_name' => ['required', 'string', 'max:255'],
             'product_type' => ['required', 'string', 'max:100'],
+        ], [
+            'email.unique' => 'This email already has an account. Please sign in to check your application status.',
         ]);
 
         $user = DB::transaction(function () {

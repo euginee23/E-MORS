@@ -36,6 +36,15 @@
                         You will receive an email notification once you are approved and assigned to a stall.
                     </p>
 
+                    <div class="mt-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 text-left">
+                        <p class="text-sm font-semibold text-amber-800 dark:text-amber-300">What unlocks your dashboard</p>
+                        <ul class="mt-2 space-y-1 text-xs text-amber-700 dark:text-amber-200">
+                            <li>1. Your stall is assigned by the market admin.</li>
+                            <li>2. Your permit status is marked active.</li>
+                            <li>3. You can then access your vendor dashboard.</li>
+                        </ul>
+                    </div>
+
                     <!-- Application details -->
                     @php $vendor = auth()->user()->vendor; @endphp
                     @if ($vendor)

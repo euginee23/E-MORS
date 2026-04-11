@@ -417,7 +417,23 @@
 
                     <div class="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
                         @foreach($markets as $market)
-                        <a href="{{ route('vendor.apply', $market) }}"
+                        @php
+                            $user = auth()->user();
+                            $vendorProfile = $user?->vendor;
+                            $isSameMarketVendor = $user?->isVendor() && $vendorProfile?->market_id === $market->id;
+                            $hasAssignedStall = $vendorProfile?->stall !== null;
+                            $isApprovedVendor = $isSameMarketVendor
+                                && $hasAssignedStall
+                                && $vendorProfile?->permit_status === \App\Enums\PermitStatus::Active;
+
+                            $marketCtaHref = $isApprovedVendor
+                                ? route('dashboard')
+                                : ($isSameMarketVendor ? route('vendor.pending') : route('vendor.apply', $market));
+                            $marketCtaText = $isApprovedVendor
+                                ? 'Open dashboard'
+                                : ($isSameMarketVendor ? 'Check application status' : 'Apply as vendor');
+                        @endphp
+                        <a href="{{ $marketCtaHref }}"
                            class="group relative flex flex-col gap-4 rounded-2xl border-2 border-orange-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:border-orange-400 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-orange-500">
                             <!-- Icon -->
                             <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-amber-100 dark:from-orange-900/40 dark:to-amber-900/40 transition-transform group-hover:scale-110">
@@ -442,7 +458,7 @@
 
                             <!-- CTA -->
                             <div class="flex items-center justify-between border-t border-orange-100 pt-4 dark:border-zinc-700">
-                                <span class="text-sm font-semibold text-orange-600 dark:text-orange-400">Apply as vendor</span>
+                                <span class="text-sm font-semibold text-orange-600 dark:text-orange-400">{{ $marketCtaText }}</span>
                                 <svg class="h-4 w-4 text-orange-500 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                                 </svg>

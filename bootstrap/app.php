@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role'             => \App\Http\Middleware\CheckRole::class,
             'vendor-approved'  => \App\Http\Middleware\EnsureVendorIsApproved::class,
+            'admin-verified'   => \App\Http\Middleware\EnsureAdminIsVerified::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

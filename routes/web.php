@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\Auth\VerifyEmailCodeController;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 Route::get('/', function () {
     return view('welcome');
@@ -20,8 +22,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Vendor waiting/pending screen — accessible before approval, no vendor-approved check
     Route::view('vendor/pending', 'vendor-pending')->name('vendor.pending');
 
-    Route::middleware('vendor-approved')->group(function () {
-        Route::view('dashboard', 'dashboard')->name('dashboard');
+    // Admin waiting screen — accessible while pending Super Admin verification
+    Route::view('admin/pending', 'admin-pending')->name('admin.pending');
+
+    // Super Admin — admin-account governance only, not scoped to a market
+    Route::middleware('role:super_admin')->prefix('super-admin')->name('super-admin.')->group(function () {
+        Route::livewire('admins', 'pages::super-admin.admins')->name('admins.index');
+        Route::livewire('audit-log', 'pages::super-admin.audit-log')->name('audit-log.index');
+
+        Route::get('admins/{admin}/photo/{type}', function (User $admin, string $type) {
+            abort_unless(in_array($type, ['valid_id', 'live_photo'], true), 404);
+
+            $path = $type === 'valid_id' ? $admin->valid_id_path : $admin->live_photo_path;
+
+            abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+            return Storage::disk('local')->response($path);
+        })->name('admins.photo');
+    });
+
+    Route::middleware(['vendor-approved', 'admin-verified'])->group(function () {
+        Route::get('dashboard', function () {
+            if (auth()->user()->isSuperAdmin()) {
+                return redirect()->route('super-admin.admins.index');
+            }
+
+            return view('dashboard');
+        })->name('dashboard');
 
         // Admin & management routes (admin only)
         Route::middleware('role:admin')->group(function () {

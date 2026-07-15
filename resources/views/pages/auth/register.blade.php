@@ -79,7 +79,7 @@
             <!-- Session Status -->
             <x-auth-session-status class="text-center mb-6" :status="session('status')" />
 
-            <form method="POST" action="{{ route('register') }}" class="space-y-5 lg:space-y-6">
+            <form method="POST" action="{{ route('register') }}" class="space-y-5 lg:space-y-6" enctype="multipart/form-data">
                 @csrf
 
                 <!-- Market Information Section -->
@@ -223,10 +223,135 @@
                                 @enderror
                             </div>
                         </div>
+
+                        <!-- Contact Number -->
+                        <div>
+                            <label for="contact_number" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+                                {{ __('Contact Number') }} <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="tel"
+                                name="contact_number"
+                                id="contact_number"
+                                value="{{ old('contact_number') }}"
+                                required
+                                autocomplete="tel"
+                                placeholder="09171234567"
+                                class="w-full px-4 py-3 lg:py-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all text-base"
+                            />
+                            @error('contact_number')
+                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <!-- Valid ID Photo -->
+                        <div>
+                            <label for="valid_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+                                {{ __('Valid ID Photo') }} <span class="text-red-500">*</span>
+                            </label>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+                                {{ __('Upload a clear photo of any government-issued ID.') }}
+                            </p>
+                            <input
+                                type="file"
+                                name="valid_id"
+                                id="valid_id"
+                                required
+                                accept="image/*"
+                                capture="environment"
+                                class="w-full text-sm text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 file:mr-4 file:py-3 file:px-4 file:rounded-l-xl file:rounded-r-none file:border-0 file:bg-orange-100 dark:file:bg-orange-900/30 file:text-orange-700 dark:file:text-orange-300 file:font-semibold hover:file:bg-orange-200 dark:hover:file:bg-orange-900/50 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                            @error('valid_id')
+                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <!-- Live Photo (Liveness Check) -->
+                        <div x-data="livePhotoCapture()" x-init="init()">
+                            <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+                                {{ __('Live Photo (Holding Your ID)') }} <span class="text-red-500">*</span>
+                            </label>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+                                {{ __('Take a live photo of yourself holding the same ID above. This confirms it\'s really you.') }}
+                            </p>
+
+                            <input type="file" name="live_photo" id="live_photo" x-ref="liveInput" :disabled="cameraError" accept="image/*" class="hidden" />
+                            <canvas x-ref="canvas" class="hidden"></canvas>
+
+                            <div class="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-4">
+                                {{-- Video stays permanently mounted so x-ref="video" is always available when startCamera() assigns srcObject; visibility is toggled instead of add/remove. --}}
+                                <div class="space-y-3 text-center" x-show="!capturedDataUrl && cameraStarted" x-cloak>
+                                    <video x-ref="video" autoplay playsinline muted class="w-full max-w-60 mx-auto rounded-lg border border-zinc-200 dark:border-zinc-700"></video>
+                                    <button type="button" @click="capture()" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors">
+                                        {{ __('Capture Photo') }}
+                                    </button>
+                                </div>
+
+                                <template x-if="capturedDataUrl">
+                                    <div class="space-y-3 text-center">
+                                        <img :src="capturedDataUrl" class="w-full max-w-60 mx-auto rounded-lg border border-zinc-200 dark:border-zinc-700" alt="Captured live photo" />
+                                        <button type="button" @click="retake()" class="text-sm font-semibold text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300">
+                                            {{ __('Retake Photo') }}
+                                        </button>
+                                    </div>
+                                </template>
+
+                                <template x-if="!capturedDataUrl && !cameraStarted && !cameraError">
+                                    <button type="button" @click="startCamera()" class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-dashed border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 text-sm font-semibold hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        {{ __('Start Camera') }}
+                                    </button>
+                                </template>
+
+                                <template x-if="cameraError">
+                                    <div class="space-y-2">
+                                        <p class="text-xs text-amber-600 dark:text-amber-400" x-text="cameraErrorMessage"></p>
+                                        <input
+                                            type="file"
+                                            name="live_photo"
+                                            accept="image/*"
+                                            capture="user"
+                                            class="w-full text-sm text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 file:mr-4 file:py-2.5 file:px-4 file:rounded-l-xl file:rounded-r-none file:border-0 file:bg-orange-100 dark:file:bg-orange-900/30 file:text-orange-700 dark:file:text-orange-300 file:font-semibold hover:file:bg-orange-200 dark:hover:file:bg-orange-900/50 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        />
+                                    </div>
+                                </template>
+                            </div>
+                            @error('live_photo')
+                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <!-- Verification Credentials -->
+                        <div>
+                            <label for="credentials" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+                                {{ __('Verification Credentials') }} <span class="text-red-500">*</span>
+                            </label>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+                                {{ __('Upload your Employee ID, appointment document, or other proof of employment. A Super Admin will verify these before your account is activated.') }}
+                            </p>
+                            <input
+                                type="file"
+                                name="credentials[]"
+                                id="credentials"
+                                multiple
+                                required
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                class="w-full text-sm text-zinc-600 dark:text-zinc-400 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 file:mr-4 file:py-3 file:px-4 file:rounded-l-xl file:rounded-r-none file:border-0 file:bg-orange-100 dark:file:bg-orange-900/30 file:text-orange-700 dark:file:text-orange-300 file:font-semibold hover:file:bg-orange-200 dark:hover:file:bg-orange-900/50 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+                            @error('credentials')
+                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                            @enderror
+                            @error('credentials.*')
+                                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
                 </div>
 
-                <button 
+                <button
                     type="submit" 
                     class="w-full py-3.5 lg:py-4 px-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-base lg:text-lg rounded-xl transition-all shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:-translate-y-0.5"
                     data-test="register-user-button"
@@ -243,4 +368,86 @@
             </div>
         </div>
     </div>
+
+    @push('scripts')
+    <script>
+        function livePhotoCapture() {
+            return {
+                stream: null,
+                cameraStarted: false,
+                cameraError: false,
+                cameraErrorMessage: '',
+                capturedDataUrl: null,
+
+                init() {
+                    // Camera is only requested when the user clicks "Start Camera".
+                },
+
+                async startCamera() {
+                    this.cameraError = false;
+
+                    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        this.cameraError = true;
+                        this.cameraErrorMessage = 'Camera access requires a secure connection (HTTPS or localhost). Please upload a live selfie photo instead.';
+                        return;
+                    }
+
+                    try {
+                        this.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                        this.cameraStarted = true;
+                        // The <video> element is always mounted (visibility is toggled via x-show,
+                        // not x-if), so the ref is already available here — no need to wait a tick.
+                        this.$refs.video.srcObject = this.stream;
+                    } catch (e) {
+                        this.cameraError = true;
+                        this.cameraStarted = false;
+
+                        this.cameraErrorMessage = {
+                            NotAllowedError: 'Camera permission was denied. Please allow camera access and try again, or upload a live selfie photo instead.',
+                            PermissionDeniedError: 'Camera permission was denied. Please allow camera access and try again, or upload a live selfie photo instead.',
+                            NotFoundError: 'No camera was found on this device. Please upload a live selfie photo instead.',
+                            DevicesNotFoundError: 'No camera was found on this device. Please upload a live selfie photo instead.',
+                            NotReadableError: 'Your camera is already in use by another application. Please upload a live selfie photo instead.',
+                            TrackStartError: 'Your camera is already in use by another application. Please upload a live selfie photo instead.',
+                            OverconstrainedError: 'Your camera doesn\'t support the required settings. Please upload a live selfie photo instead.',
+                        }[e.name] || 'Camera unavailable. Please upload a live selfie photo instead.';
+                    }
+                },
+
+                capture() {
+                    const video = this.$refs.video;
+                    const canvas = this.$refs.canvas;
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    this.capturedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+                    canvas.toBlob((blob) => {
+                        const file = new File([blob], 'live-photo.jpg', { type: 'image/jpeg' });
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        this.$refs.liveInput.files = dataTransfer.files;
+                    }, 'image/jpeg', 0.9);
+
+                    this.stopCamera();
+                },
+
+                retake() {
+                    this.capturedDataUrl = null;
+                    this.$refs.liveInput.value = '';
+                    this.startCamera();
+                },
+
+                stopCamera() {
+                    if (this.stream) {
+                        this.stream.getTracks().forEach((track) => track.stop());
+                        this.stream = null;
+                    }
+                    this.cameraStarted = false;
+                },
+            };
+        }
+    </script>
+    @endpush
 </x-layouts.auth.landing>

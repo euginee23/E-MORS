@@ -17,7 +17,20 @@
                     </flux:sidebar.item>
                 </flux:sidebar.group>
 
-                @if(auth()->user()->isAdmin())
+                @if(auth()->user()->isSuperAdmin())
+                <flux:sidebar.group :heading="__('Governance')" class="grid">
+                    <flux:sidebar.item icon="shield-check" :href="route('super-admin.admins.index')" :current="request()->routeIs('super-admin.admins.*')" wire:navigate>
+                        {{ __('Admin Accounts') }}
+                        @php $pendingAdmins = \App\Models\User::where('role', 'admin')->where('status', 'pending')->count(); @endphp
+                        @if($pendingAdmins > 0)
+                        <flux:badge color="yellow" size="sm" class="ml-auto">{{ $pendingAdmins }}</flux:badge>
+                        @endif
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="clipboard-document-list" :href="route('super-admin.audit-log.index')" :current="request()->routeIs('super-admin.audit-log.*')" wire:navigate>
+                        {{ __('Audit Log') }}
+                    </flux:sidebar.item>
+                </flux:sidebar.group>
+                @elseif(auth()->user()->isAdmin())
                 <flux:sidebar.group :heading="__('Management')" class="grid">
                     <flux:sidebar.item icon="users" :href="route('vendors.index')" :current="request()->routeIs('vendors.*')" wire:navigate>
                         {{ __('Vendors') }}

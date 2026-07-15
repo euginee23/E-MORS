@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AdminStatus;
 use App\Enums\UserRole;
 use App\Mail\VerifyEmailCode;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -32,6 +33,15 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'market_id',
+        'status',
+        'is_active',
+        'verified_by',
+        'verified_at',
+        'rejection_reason',
+        'credential_paths',
+        'contact_number',
+        'valid_id_path',
+        'live_photo_path',
     ];
 
     /**
@@ -55,6 +65,10 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'status' => AdminStatus::class,
+            'is_active' => 'boolean',
+            'verified_at' => 'datetime',
+            'credential_paths' => 'array',
         ];
     }
 
@@ -64,6 +78,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function market(): BelongsTo
     {
         return $this->belongsTo(Market::class);
+    }
+
+    /**
+     * Get the super admin who verified this user's admin account.
+     */
+    public function verifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 
     /**
@@ -102,6 +124,14 @@ class User extends Authenticatable implements MustVerifyEmail
         Cache::put("email_verify_code_{$this->id}", $code, now()->addMinutes(10));
 
         Mail::to($this->email)->send(new VerifyEmailCode($this, $code));
+    }
+
+    /**
+     * Check if the user has the super admin role.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === UserRole::SuperAdmin;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\AdminStatus;
 use App\Enums\UserRole;
 use App\Models\Market;
 use App\Models\User;
@@ -18,11 +19,25 @@ class RoleSeeder extends Seeder
 
         $users = [
             [
+                'name' => 'System Super Admin',
+                'email' => 'superadmin@emors.test',
+                'password' => 'password',
+                'role' => UserRole::SuperAdmin,
+                'market_id' => null,
+                'status' => AdminStatus::Verified,
+                'is_active' => true,
+                'verified_at' => now(),
+                'email_verified_at' => now(),
+            ],
+            [
                 'name' => 'Engr. Ricardo Mangubat',
                 'email' => 'admin@emors.test',
                 'password' => 'password',
                 'role' => UserRole::Admin,
                 'market_id' => $market->id,
+                'status' => AdminStatus::Verified,
+                'is_active' => true,
+                'verified_at' => now(),
                 'email_verified_at' => now(),
             ],
             [

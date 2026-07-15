@@ -6,6 +6,8 @@
 
     $user = auth()->user();
     $marketId = $user->market_id;
+    $recentCollections = collect();
+    $myCollections = collect();
 
     if ($user->isAdmin() || $user->isCollector()) {
         $totalVendors = Vendor::where('market_id', $marketId)->count();

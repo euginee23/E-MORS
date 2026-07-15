@@ -1,9 +1,9 @@
 <?php
 
 use App\Http\Controllers\Auth\VerifyEmailCodeController;
-use App\Models\User;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\SuperAdmin\AdminPhotoController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Storage;
 
 Route::get('/', function () {
     return view('welcome');
@@ -30,25 +30,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::livewire('admins', 'pages::super-admin.admins')->name('admins.index');
         Route::livewire('audit-log', 'pages::super-admin.audit-log')->name('audit-log.index');
 
-        Route::get('admins/{admin}/photo/{type}', function (User $admin, string $type) {
-            abort_unless(in_array($type, ['valid_id', 'live_photo'], true), 404);
-
-            $path = $type === 'valid_id' ? $admin->valid_id_path : $admin->live_photo_path;
-
-            abort_unless($path && Storage::disk('local')->exists($path), 404);
-
-            return Storage::disk('local')->response($path);
-        })->name('admins.photo');
+        Route::get('admins/{admin}/photo/{type}', AdminPhotoController::class)->name('admins.photo');
     });
 
     Route::middleware(['vendor-approved', 'admin-verified'])->group(function () {
-        Route::get('dashboard', function () {
-            if (auth()->user()->isSuperAdmin()) {
-                return redirect()->route('super-admin.admins.index');
-            }
-
-            return view('dashboard');
-        })->name('dashboard');
+        Route::get('dashboard', DashboardController::class)->name('dashboard');
 
         // Admin & management routes (admin only)
         Route::middleware('role:admin')->group(function () {

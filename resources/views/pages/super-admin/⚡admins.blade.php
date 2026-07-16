@@ -206,6 +206,30 @@ new class extends Component {
         $this->clearCache();
     }
 
+    public function deleteAdmin(int $adminId): void
+    {
+        $admin = User::where('role', UserRole::Admin)->findOrFail($adminId);
+        $name = $admin->name;
+
+        if ($admin->valid_id_path) {
+            Storage::disk('local')->delete($admin->valid_id_path);
+        }
+
+        if ($admin->live_photo_path) {
+            Storage::disk('local')->delete($admin->live_photo_path);
+        }
+
+        foreach ($admin->credential_paths ?? [] as $path) {
+            Storage::disk('local')->delete($path);
+        }
+
+        $admin->delete();
+
+        $this->showViewModal = false;
+        $this->dispatch('toast', message: "{$name} has been deleted.", type: 'success');
+        $this->clearCache();
+    }
+
     public function openCreateModal(): void
     {
         $this->resetForm();
@@ -414,6 +438,8 @@ new class extends Component {
                                         <flux:menu.item icon="check" x-on:click="$dispatch('open-confirm', { title: 'Approve Admin', message: 'Approve {{ $admin->name }} for {{ $admin->market?->name }}?', confirm: 'Approve', variant: 'primary', onConfirm: () => $wire.approve({{ $admin->id }}) })">{{ __('Approve') }}</flux:menu.item>
                                         <flux:menu.item icon="x-mark" variant="danger" wire:click="openRejectModal({{ $admin->id }})">{{ __('Reject') }}</flux:menu.item>
                                         @endif
+                                        <flux:menu.separator />
+                                        <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Admin', message: 'Permanently delete {{ $admin->name }}? This removes their account and all submitted documents. This cannot be undone.', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteAdmin({{ $admin->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>
                                 </flux:dropdown>
                             </td>

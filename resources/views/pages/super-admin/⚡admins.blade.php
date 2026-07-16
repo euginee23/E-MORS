@@ -5,9 +5,14 @@ use App\Enums\UserRole;
 use App\Mail\AdminAccountApproved;
 use App\Mail\AdminAccountRejected;
 use App\Models\AdminVerificationLog;
+use App\Models\Announcement;
+use App\Models\Collection;
 use App\Models\Market;
+use App\Models\Stall;
 use App\Models\User;
+use App\Models\Vendor;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -40,6 +45,14 @@ new class extends Component {
     public ?int $formMarketId = null;
     public string $formPassword = '';
     public string $formPasswordConfirmation = '';
+
+    // Delete admin + market modal
+    public bool $showDeleteModal = false;
+    public ?int $deletingAdminId = null;
+    public string $deletingAdminName = '';
+    public ?int $deletingMarketId = null;
+    public string $deletingMarketName = '';
+    public string $deleteConfirmationText = '';
 
     public function updatedSearch(): void
     {
@@ -206,28 +219,93 @@ new class extends Component {
         $this->clearCache();
     }
 
-    public function deleteAdmin(int $adminId): void
+    #[Computed]
+    public function deleteImpact(): ?array
     {
-        $admin = User::where('role', UserRole::Admin)->findOrFail($adminId);
-        $name = $admin->name;
-
-        if ($admin->valid_id_path) {
-            Storage::disk('local')->delete($admin->valid_id_path);
+        if (! $this->deletingMarketId) {
+            return null;
         }
 
-        if ($admin->live_photo_path) {
-            Storage::disk('local')->delete($admin->live_photo_path);
-        }
+        $marketId = $this->deletingMarketId;
 
-        foreach ($admin->credential_paths ?? [] as $path) {
-            Storage::disk('local')->delete($path);
-        }
+        return [
+            'vendors' => Vendor::withTrashed()->where('market_id', $marketId)->count(),
+            'stalls' => Stall::where('market_id', $marketId)->count(),
+            'collections' => Collection::where('market_id', $marketId)->count(),
+            'announcements' => Announcement::where('market_id', $marketId)->count(),
+            'users' => User::where('market_id', $marketId)->count(),
+        ];
+    }
 
-        $admin->delete();
+    public function openDeleteModal(int $adminId): void
+    {
+        $admin = User::where('role', UserRole::Admin)->with('market')->findOrFail($adminId);
 
+        $this->deletingAdminId = $admin->id;
+        $this->deletingAdminName = $admin->name;
+        $this->deletingMarketId = $admin->market_id;
+        $this->deletingMarketName = $admin->market?->name ?? '';
+        $this->deleteConfirmationText = '';
         $this->showViewModal = false;
-        $this->dispatch('toast', message: "{$name} has been deleted.", type: 'success');
+        $this->showDeleteModal = true;
+    }
+
+    public function deleteAdmin(): void
+    {
+        $admin = User::where('role', UserRole::Admin)->findOrFail($this->deletingAdminId);
+        $market = $admin->market_id ? Market::find($admin->market_id) : null;
+
+        $this->validate([
+            'deleteConfirmationText' => [
+                'required',
+                function ($attribute, $value, $fail) use ($market) {
+                    $expected = $market?->name ?? '';
+                    if ($value !== $expected) {
+                        $fail('Type the municipality name exactly to confirm.');
+                    }
+                },
+            ],
+        ]);
+
+        DB::transaction(function () use ($admin, $market) {
+            $usersToPurge = $market
+                ? User::where('market_id', $market->id)->get()
+                : collect([$admin]);
+
+            foreach ($usersToPurge as $user) {
+                if ($user->valid_id_path) {
+                    Storage::disk('local')->delete($user->valid_id_path);
+                }
+
+                if ($user->live_photo_path) {
+                    Storage::disk('local')->delete($user->live_photo_path);
+                }
+
+                foreach ($user->credential_paths ?? [] as $path) {
+                    Storage::disk('local')->delete($path);
+                }
+            }
+
+            if ($market) {
+                User::where('market_id', $market->id)->delete();
+                $market->delete();
+            } else {
+                $admin->delete();
+            }
+        });
+
+        $marketName = $this->deletingMarketName;
+
+        $this->showDeleteModal = false;
+        $this->deletingAdminId = null;
+        $this->deletingAdminName = '';
+        $this->deletingMarketId = null;
+        $this->deletingMarketName = '';
+        $this->deleteConfirmationText = '';
+
+        $this->dispatch('toast', message: $marketName ? "{$marketName} and all its data have been permanently deleted." : 'Admin has been deleted.', type: 'success');
         $this->clearCache();
+        unset($this->deleteImpact);
     }
 
     public function openCreateModal(): void
@@ -439,7 +517,7 @@ new class extends Component {
                                         <flux:menu.item icon="x-mark" variant="danger" wire:click="openRejectModal({{ $admin->id }})">{{ __('Reject') }}</flux:menu.item>
                                         @endif
                                         <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Admin', message: 'Permanently delete {{ $admin->name }}? This removes their account and all submitted documents. This cannot be undone.', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteAdmin({{ $admin->id }}) })">{{ __('Delete') }}</flux:menu.item>
+                                        <flux:menu.item icon="trash" variant="danger" wire:click="openDeleteModal({{ $admin->id }})">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>
                                 </flux:dropdown>
                             </td>
@@ -594,6 +672,64 @@ new class extends Component {
                 <div class="flex justify-end gap-3 pt-2">
                     <flux:button variant="ghost" wire:click="$set('showRejectModal', false)" wire:loading.attr="disabled" wire:target="reject">{{ __('Cancel') }}</flux:button>
                     <flux:button variant="danger" type="submit" wire:loading.attr="disabled" wire:target="reject">{{ __('Reject Account') }}</flux:button>
+                </div>
+            </form>
+        </div>
+    </flux:modal>
+
+    {{-- Delete Admin + Market Modal --}}
+    <flux:modal wire:model="showDeleteModal" class="max-w-lg">
+        <div class="space-y-6">
+            <div class="flex items-start gap-4">
+                <div class="flex size-11 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                    <flux:icon.exclamation-triangle class="size-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                    <flux:heading size="lg">{{ __('Delete :admin & :market', ['admin' => $deletingAdminName, 'market' => $deletingMarketName]) }}</flux:heading>
+                    <flux:subheading class="mt-1">
+                        {{ __('This permanently deletes the admin account and the entire municipality it belongs to — not just this admin. There is no undo.') }}
+                    </flux:subheading>
+                </div>
+            </div>
+
+            @if($this->deleteImpact)
+            <div class="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10 p-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-400 mb-2">{{ __('This will permanently destroy') }}</p>
+                <ul class="space-y-1 text-sm text-red-800 dark:text-red-300">
+                    <li>{{ trans_choice(':count user account|:count user accounts', $this->deleteImpact['users'], ['count' => $this->deleteImpact['users']]) }} {{ __('(all admins, collectors, and vendors on this municipality)') }}</li>
+                    <li>{{ trans_choice(':count vendor|:count vendors', $this->deleteImpact['vendors'], ['count' => $this->deleteImpact['vendors']]) }}</li>
+                    <li>{{ trans_choice(':count stall|:count stalls', $this->deleteImpact['stalls'], ['count' => $this->deleteImpact['stalls']]) }}</li>
+                    <li>{{ trans_choice(':count collection record|:count collection records', $this->deleteImpact['collections'], ['count' => $this->deleteImpact['collections']]) }} {{ __('(payment / revenue history)') }}</li>
+                    <li>{{ trans_choice(':count announcement|:count announcements', $this->deleteImpact['announcements'], ['count' => $this->deleteImpact['announcements']]) }}</li>
+                    <li>{{ __('The municipality record itself:') }} <strong>{{ $deletingMarketName }}</strong></li>
+                </ul>
+            </div>
+            @endif
+
+            <form wire:submit="deleteAdmin" class="space-y-4">
+                <flux:input
+                    wire:model="deleteConfirmationText"
+                    label="{{ __('Type the municipality name to confirm') }}"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="{{ $deletingMarketName }}"
+                />
+                <p class="text-xs text-zinc-500 dark:text-zinc-400 -mt-2">
+                    {{ __('Type') }} <span class="font-mono font-semibold text-zinc-700 dark:text-zinc-300">{{ $deletingMarketName }}</span> {{ __('exactly as shown.') }}
+                </p>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <flux:button variant="ghost" wire:click="$set('showDeleteModal', false)" wire:loading.attr="disabled" wire:target="deleteAdmin">{{ __('Cancel') }}</flux:button>
+                    <flux:button variant="danger" type="submit" wire:loading.attr="disabled" wire:target="deleteAdmin">
+                        <span wire:loading.remove wire:target="deleteAdmin">{{ __('Permanently Delete') }}</span>
+                        <span wire:loading wire:target="deleteAdmin" class="inline-flex items-center gap-1.5">
+                            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                            </svg>
+                            {{ __('Deleting...') }}
+                        </span>
+                    </flux:button>
                 </div>
             </form>
         </div>

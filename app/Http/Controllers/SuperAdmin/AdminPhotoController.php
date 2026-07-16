@@ -4,12 +4,12 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminPhotoController extends Controller
 {
-    public function __invoke(User $admin, string $type): Response
+    public function __invoke(User $admin, string $type): StreamedResponse
     {
         abort_unless(in_array($type, ['valid_id', 'live_photo'], true), 404);
 

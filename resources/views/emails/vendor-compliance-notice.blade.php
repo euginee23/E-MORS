@@ -42,12 +42,17 @@
                                 Status: {{ ucfirst((string) ($notice->details['payment_status'] ?? 'pending')) }}<br>
                                 Due Date: {{ optional($notice->issue_date)->format('M j, Y') ?? 'N/A' }}
                             </p>
-                        @elseif($notice->notice_type === 'permit_expired')
-                            <h3>Expired Permit</h3>
+                        @elseif($notice->notice_type === 'stall_expired')
+                            <h3>Expired Stall Rental</h3>
                             <p>
-                                Permit Number: {{ $notice->details['permit_number'] ?? 'N/A' }}<br>
-                                Status: {{ ucfirst((string) ($notice->details['permit_status'] ?? 'expired')) }}<br>
-                                Expiry Date: {{ optional($notice->issue_date)->format('M j, Y') ?? 'N/A' }}
+                                Stall No.: {{ $notice->details['stall_number'] ?? 'N/A' }}<br>
+                                Section: {{ $notice->details['section'] ?? 'N/A' }}<br>
+                                Expiry Date: {{ optional($notice->issue_date)->format('M j, Y') ?? 'N/A' }}<br>
+                                Days Overdue: {{ $notice->details['expired_days'] ?? 'N/A' }}<br>
+                                Monthly Rent: ₱{{ number_format((float) ($notice->details['monthly_rate'] ?? 0), 2) }}
+                            </p>
+                            <p>
+                                Please visit the market office to renew this stall's rental term.
                             </p>
                         @endif
                     </div>

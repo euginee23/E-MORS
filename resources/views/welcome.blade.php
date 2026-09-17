@@ -70,44 +70,9 @@
                             <div class="relative">
                                 <!-- Main Card -->
                                 <div class="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 border border-orange-100 dark:border-zinc-800">
-                                    <!-- Market Map Preview -->
-                                    <div class="mb-4 sm:mb-6">
-                                        <div class="flex items-center justify-between mb-3 sm:mb-4">
-                                            <h3 class="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">Market Layout</h3>
-                                            <span class="text-[10px] sm:text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded-full font-medium">Live</span>
-                                        </div>
-                                        <!-- Stall Grid -->
-                                        <div class="grid grid-cols-6 gap-1 sm:gap-1.5">
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-orange-400 dark:bg-orange-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-zinc-200 dark:bg-zinc-700 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-orange-400 dark:bg-orange-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-zinc-200 dark:bg-zinc-700 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-orange-400 dark:bg-orange-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-zinc-200 dark:bg-zinc-700 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-zinc-200 dark:bg-zinc-700 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-orange-400 dark:bg-orange-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-green-400 dark:bg-green-500 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                            <div class="aspect-square bg-zinc-200 dark:bg-zinc-700 rounded-md transition-transform hover:scale-110 cursor-pointer"></div>
-                                        </div>
-                                        <div class="flex flex-wrap items-center gap-2 sm:gap-4 mt-2 sm:mt-3 text-[10px] sm:text-xs text-zinc-600 dark:text-zinc-400">
-                                            <span class="flex items-center gap-1"><span class="w-2 h-2 bg-green-400 rounded"></span> Occupied</span>
-                                            <span class="flex items-center gap-1"><span class="w-2 h-2 bg-orange-400 rounded"></span> Reserved</span>
-                                            <span class="flex items-center gap-1"><span class="w-2 h-2 bg-zinc-200 dark:bg-zinc-700 rounded"></span> Available</span>
-                                        </div>
+                                    <div class="flex items-center justify-between mb-4 sm:mb-5">
+                                        <h3 class="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">Market at a Glance</h3>
+                                        <span class="text-[10px] sm:text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded-full font-medium">Live</span>
                                     </div>
 
                                     <!-- Stats Row -->

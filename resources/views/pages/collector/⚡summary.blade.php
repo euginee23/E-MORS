@@ -30,7 +30,7 @@ new class extends Component {
     public function totalVendors(): int
     {
         return Vendor::where('market_id', $this->marketId)
-            ->has('stall')
+            ->has('stalls')
             ->count();
     }
 
@@ -54,7 +54,7 @@ new class extends Component {
             ->pluck('vendor_id');
 
         return Vendor::where('market_id', $this->marketId)
-            ->has('stall')
+            ->has('stalls')
             ->whereNotIn('id', $paidVendorIds)
             ->count();
     }
@@ -87,9 +87,9 @@ new class extends Component {
             ->pluck('vendor_id');
 
         return Vendor::where('market_id', $this->marketId)
-            ->has('stall')
+            ->has('stalls')
             ->whereNotIn('id', $paidVendorIds)
-            ->with('stall')
+            ->with('stalls')
             ->orderBy('contact_name')
             ->get();
     }
@@ -227,7 +227,7 @@ new class extends Component {
                     <div class="flex items-center justify-between rounded-xl bg-white/60 dark:bg-zinc-900/40 p-3 border border-amber-100 dark:border-amber-900/30" wire:key="pv-{{ $vendor->id }}">
                         <div>
                             <p class="text-sm font-medium text-amber-900 dark:text-amber-200">{{ $vendor->contact_name }}</p>
-                            <p class="text-xs text-amber-700 dark:text-amber-400">Stall {{ $vendor->stall?->stall_number }} · ₱ {{ number_format($vendor->stall?->monthly_rate, 0) }}</p>
+                            <p class="text-xs text-amber-700 dark:text-amber-400">Stall {{ $vendor->stalls->pluck("stall_number")->join(", ") }} · ₱ {{ number_format($vendor->stalls->sum("monthly_rate"), 0) }}</p>
                         </div>
                         <flux:badge color="yellow" size="sm">Pending</flux:badge>
                     </div>

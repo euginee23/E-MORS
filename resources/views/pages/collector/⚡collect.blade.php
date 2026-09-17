@@ -11,6 +11,7 @@ use Livewire\Component;
 new class extends Component {
 
     public ?int $formVendorId = null;
+    public ?int $formStallId = null;
     public string $formStall = '';
     public string $formAmount = '';
     public string $formPaymentMethod = 'cash';
@@ -26,16 +27,35 @@ new class extends Component {
 
     public function updatedFormVendorId(): void
     {
-        if ($this->formVendorId) {
-            $vendor = Vendor::with('stall')->find($this->formVendorId);
-            if ($vendor?->stall) {
-                $this->formStall = $vendor->stall->stall_number;
-                $this->formAmount = (string) $vendor->stall->monthly_rate;
-            }
-        } else {
+        $this->formStallId = null;
+        $this->formStall = '';
+        $this->formAmount = '';
+
+        // A vendor renting exactly one stall needs no choice — preselect it.
+        if ($this->formVendorId && $this->vendorStalls->count() === 1) {
+            $this->formStallId = $this->vendorStalls->first()->id;
+            $this->applySelectedStall();
+        }
+    }
+
+    public function updatedFormStallId(): void
+    {
+        $this->applySelectedStall();
+    }
+
+    private function applySelectedStall(): void
+    {
+        $stall = $this->vendorStalls->firstWhere('id', (int) $this->formStallId);
+
+        if (! $stall) {
             $this->formStall = '';
             $this->formAmount = '';
+
+            return;
         }
+
+        $this->formStall = $stall->stall_number;
+        $this->formAmount = (string) $stall->monthly_rate;
     }
 
     #[Computed]
@@ -48,10 +68,25 @@ new class extends Component {
     public function vendorsWithStalls(): \Illuminate\Support\Collection
     {
         return Vendor::where('market_id', $this->marketId)
-            ->has('stall')
-            ->with('stall')
+            ->has('stalls')
+            ->withCount('stalls')
+            ->with('stalls')
             ->orderBy('contact_name')
             ->get();
+    }
+
+    /**
+     * Stalls belonging to the vendor currently selected in the form.
+     */
+    #[Computed]
+    public function vendorStalls(): \Illuminate\Support\Collection
+    {
+        if (! $this->formVendorId) {
+            return collect();
+        }
+
+        return $this->vendorsWithStalls->firstWhere('id', (int) $this->formVendorId)?->stalls
+            ?? collect();
     }
 
     #[Computed]
@@ -78,7 +113,7 @@ new class extends Component {
     #[Computed]
     public function totalVendors(): int
     {
-        return Vendor::where('market_id', $this->marketId)->has('stall')->count();
+        return Vendor::where('market_id', $this->marketId)->has('stalls')->count();
     }
 
     #[Computed]
@@ -104,20 +139,25 @@ new class extends Component {
     {
         $this->validate([
             'formVendorId' => ['required', 'exists:vendors,id'],
+            'formStallId' => ['required', 'integer'],
             'formAmount' => ['required', 'numeric', 'min:0.01'],
             'formPaymentDate' => ['required', 'date'],
             'formPaymentMethod' => ['required', 'string', 'max:50'],
             'formNotes' => ['nullable', 'string', 'max:500'],
+        ], [
+            'formStallId.required' => 'Please select which stall this payment is for.',
         ]);
 
-        $vendor = Vendor::with('stall')->findOrFail($this->formVendorId);
+        // Guard against a stall id that does not belong to the chosen vendor.
+        $stall = $this->vendorStalls->firstWhere('id', (int) $this->formStallId);
+        abort_unless($stall !== null, 422);
 
         $receiptNumber = Collection::generateReceiptNumber($this->marketId);
 
         Collection::create([
             'market_id' => $this->marketId,
             'vendor_id' => $this->formVendorId,
-            'stall_id' => $vendor->stall?->id,
+            'stall_id' => $stall->id,
             'collector_id' => Auth::id(),
             'receipt_number' => $receiptNumber,
             'amount' => $this->formAmount,
@@ -136,6 +176,7 @@ new class extends Component {
     public function resetForm(): void
     {
         $this->formVendorId = null;
+        $this->formStallId = null;
         $this->formStall = '';
         $this->formAmount = '';
         $this->formPaymentDate = now()->toDateString();
@@ -187,11 +228,31 @@ new class extends Component {
                             <flux:select wire:model.live="formVendorId" :label="__('Vendor')" required>
                                 <flux:select.option :value="null">{{ __('— Select Vendor —') }}</flux:select.option>
                                 @foreach($this->vendorsWithStalls as $vendor)
-                                <flux:select.option :value="$vendor->id">{{ $vendor->contact_name }} — {{ $vendor->stall->stall_number }}</flux:select.option>
+                                <flux:select.option :value="$vendor->id">
+                                    {{ $vendor->contact_name }}
+                                    @if($vendor->stalls_count > 1)
+                                        — {{ trans_choice(':count stall|:count stalls', $vendor->stalls_count, ['count' => $vendor->stalls_count]) }}
+                                    @else
+                                        — {{ $vendor->stalls->first()?->stall_number }}
+                                    @endif
+                                </flux:select.option>
                                 @endforeach
                             </flux:select>
                             <div>
+                                @if($this->vendorStalls->count() > 1)
+                                {{-- This vendor rents several stalls, so the payment must name one. --}}
+                                <flux:select wire:model.live="formStallId" :label="__('Stall')" required>
+                                    <flux:select.option :value="null">{{ __('— Select Stall —') }}</flux:select.option>
+                                    @foreach($this->vendorStalls as $vendorStall)
+                                    <flux:select.option :value="$vendorStall->id">
+                                        {{ $vendorStall->stall_number }} — {{ $vendorStall->section }} (₱{{ number_format($vendorStall->monthly_rate, 2) }}/mo)
+                                    </flux:select.option>
+                                    @endforeach
+                                </flux:select>
+                                @error('formStallId') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                                @else
                                 <flux:input wire:model="formStall" :label="__('Stall')" placeholder="Auto-filled from vendor" disabled />
+                                @endif
                             </div>
                         </div>
 

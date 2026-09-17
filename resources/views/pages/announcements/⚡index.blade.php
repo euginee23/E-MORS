@@ -66,12 +66,6 @@ new class extends Component {
         return Announcement::where('market_id', $this->marketId)->whereNotNull('published_at')->count();
     }
 
-    public function openCreateModal(): void
-    {
-        $this->resetForm();
-        $this->showModal = true;
-    }
-
     public function openEditModal(int $id): void
     {
         $announcement = Announcement::where('market_id', $this->marketId)->findOrFail($id);
@@ -100,18 +94,16 @@ new class extends Component {
             'published_at' => $this->formPublished ? now() : null,
         ];
 
-        if ($this->editingId) {
-            $announcement = Announcement::where('market_id', $this->marketId)->findOrFail($this->editingId);
-            // Keep original published_at if already published and still published
-            if ($announcement->published_at && $this->formPublished) {
-                unset($data['published_at']);
-            }
-            $announcement->update($data);
-            $this->dispatch('toast', message: 'Announcement updated successfully.', type: 'success');
-        } else {
-            Announcement::create($data);
-            $this->dispatch('toast', message: 'Announcement created successfully.', type: 'success');
+        // Creating happens on the dedicated create page; this modal only edits.
+        $announcement = Announcement::where('market_id', $this->marketId)->findOrFail($this->editingId);
+
+        // Keep original published_at if already published and still published
+        if ($announcement->published_at && $this->formPublished) {
+            unset($data['published_at']);
         }
+
+        $announcement->update($data);
+        $this->dispatch('toast', message: 'Announcement updated successfully.', type: 'success');
 
         $this->showModal = false;
         $this->resetForm();
@@ -194,10 +186,7 @@ new class extends Component {
             </div>
             <div class="flex items-center gap-2">
                 <flux:button icon="plus" variant="primary" :href="route('announcements.create')" wire:navigate>
-                    {{ __('Create Page') }}
-                </flux:button>
-                <flux:button icon="sparkles" variant="ghost" wire:click="openCreateModal">
-                    {{ __('Quick Create') }}
+                    {{ __('Create Announcement') }}
                 </flux:button>
             </div>
         </div>
@@ -298,12 +287,12 @@ new class extends Component {
         </div>
     </div>
 
-    {{-- Create/Edit Modal --}}
+    {{-- Edit Modal --}}
     <flux:modal wire:model="showModal" class="max-w-lg">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg">{{ $editingId ? __('Edit Announcement') : __('New Announcement') }}</flux:heading>
-                <flux:subheading>{{ $editingId ? __('Update announcement details.') : __('Create a new announcement for vendors.') }}</flux:subheading>
+                <flux:heading size="lg">{{ __('Edit Announcement') }}</flux:heading>
+                <flux:subheading>{{ __('Update announcement details.') }}</flux:subheading>
             </div>
 
             <form wire:submit="save" class="space-y-4">
@@ -323,7 +312,7 @@ new class extends Component {
 
                 <div class="flex justify-end gap-3 pt-2">
                     <flux:button variant="ghost" wire:click="$set('showModal', false)">{{ __('Cancel') }}</flux:button>
-                    <flux:button variant="primary" type="submit">{{ $editingId ? __('Update') : __('Create') }}</flux:button>
+                    <flux:button variant="primary" type="submit">{{ __('Update') }}</flux:button>
                 </div>
             </form>
         </div>

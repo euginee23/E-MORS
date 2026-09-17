@@ -1,10 +1,13 @@
 <?php
 
+/**
+ * Admin-facing collections screen. Recording a payment belongs to collectors in the field,
+ * so this page is deliberately read-only: the admin monitors and audits, nothing more.
+ */
+
 use App\Enums\PaymentStatus;
 use App\Models\Collection;
-use App\Models\Vendor;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -16,26 +19,9 @@ new class extends Component {
     public string $statusFilter = 'all';
     public string $periodFilter = 'all';
 
-    // Create/Edit form
-    public bool $showModal = false;
-    public ?int $editingCollectionId = null;
-    public ?int $formVendorId = null;
-    public string $formAmount = '';
-    public string $formPaymentDate = '';
-    public string $formPaymentMethod = 'cash';
-    public string $formStatus = 'paid';
-    public string $formNotes = '';
-
     // View receipt
     public bool $showReceiptModal = false;
     public ?Collection $viewingCollection = null;
-
-
-
-    public function mount(): void
-    {
-        $this->formPaymentDate = now()->toDateString();
-    }
 
     public function updatedSearch(): void
     {
@@ -50,16 +36,6 @@ new class extends Component {
     public function updatedPeriodFilter(): void
     {
         $this->resetPage();
-    }
-
-    public function updatedFormVendorId(): void
-    {
-        if ($this->formVendorId) {
-            $vendor = Vendor::with('stall')->find($this->formVendorId);
-            if ($vendor?->stall) {
-                $this->formAmount = (string) $vendor->stall->monthly_rate;
-            }
-        }
     }
 
     #[Computed]
@@ -130,114 +106,12 @@ new class extends Component {
         return $rate . '%';
     }
 
-    #[Computed]
-    public function vendorsWithStalls(): \Illuminate\Support\Collection
-    {
-        return Vendor::where('market_id', $this->marketId)
-            ->has('stall')
-            ->with('stall')
-            ->orderBy('contact_name')
-            ->get();
-    }
-
-    public function openCreateModal(): void
-    {
-        $this->resetForm();
-        $this->formPaymentDate = now()->toDateString();
-        $this->showModal = true;
-    }
-
-    public function openEditModal(int $collectionId): void
-    {
-        $collection = Collection::where('market_id', $this->marketId)->findOrFail($collectionId);
-        $this->editingCollectionId = $collection->id;
-        $this->formVendorId = $collection->vendor_id;
-        $this->formAmount = (string) $collection->amount;
-        $this->formPaymentDate = $collection->payment_date->format('Y-m-d');
-        $this->formPaymentMethod = $collection->payment_method;
-        $this->formStatus = $collection->status->value;
-        $this->formNotes = $collection->notes ?? '';
-        $this->showModal = true;
-    }
-
     public function viewReceipt(int $collectionId): void
     {
         $this->viewingCollection = Collection::where('market_id', $this->marketId)
             ->with(['vendor', 'stall', 'collector'])
             ->findOrFail($collectionId);
         $this->showReceiptModal = true;
-    }
-
-    public function save(): void
-    {
-        $this->validate([
-            'formVendorId' => ['required', 'exists:vendors,id'],
-            'formAmount' => ['required', 'numeric', 'min:0.01'],
-            'formPaymentDate' => ['required', 'date'],
-            'formPaymentMethod' => ['required', 'string', 'max:50'],
-            'formStatus' => ['required', Rule::in(array_column(PaymentStatus::cases(), 'value'))],
-            'formNotes' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $vendor = Vendor::with('stall')->findOrFail($this->formVendorId);
-
-        if ($this->editingCollectionId) {
-            $collection = Collection::where('market_id', $this->marketId)->findOrFail($this->editingCollectionId);
-            $collection->update([
-                'vendor_id' => $this->formVendorId,
-                'stall_id' => $vendor->stall?->id,
-                'amount' => $this->formAmount,
-                'payment_date' => $this->formPaymentDate,
-                'payment_method' => $this->formPaymentMethod,
-                'status' => $this->formStatus,
-                'notes' => $this->formNotes ?: null,
-                'collector_id' => $this->formStatus === 'paid' ? Auth::id() : null,
-            ]);
-            $this->dispatch('toast', message: 'Collection updated successfully.', type: 'success');
-        } else {
-            $receiptNumber = Collection::generateReceiptNumber($this->marketId);
-            Collection::create([
-                'market_id' => $this->marketId,
-                'vendor_id' => $this->formVendorId,
-                'stall_id' => $vendor->stall?->id,
-                'collector_id' => $this->formStatus === 'paid' ? Auth::id() : null,
-                'receipt_number' => $receiptNumber,
-                'amount' => $this->formAmount,
-                'payment_date' => $this->formPaymentDate,
-                'payment_method' => $this->formPaymentMethod,
-                'status' => $this->formStatus,
-                'notes' => $this->formNotes ?: null,
-            ]);
-            $this->dispatch('toast', message: 'Payment recorded successfully. Receipt: ' . $receiptNumber, type: 'success');
-        }
-
-        $this->showModal = false;
-        $this->resetForm();
-        $this->clearCache();
-    }
-
-    public function deleteCollection(int $collectionId): void
-    {
-        Collection::where('market_id', $this->marketId)->findOrFail($collectionId)->delete();
-        $this->dispatch('toast', message: 'Collection deleted successfully.', type: 'success');
-        $this->clearCache();
-    }
-
-    private function resetForm(): void
-    {
-        $this->editingCollectionId = null;
-        $this->formVendorId = null;
-        $this->formAmount = '';
-        $this->formPaymentDate = now()->toDateString();
-        $this->formPaymentMethod = 'cash';
-        $this->formStatus = 'paid';
-        $this->formNotes = '';
-        $this->resetValidation();
-    }
-
-    private function clearCache(): void
-    {
-        unset($this->collections, $this->todayTotal, $this->weekTotal, $this->pendingCount, $this->collectionRate);
     }
 
     public function render()
@@ -259,11 +133,8 @@ new class extends Component {
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <flux:heading size="xl">{{ __('Fee Collection') }}</flux:heading>
-                <flux:subheading class="mt-1">{{ __('Track payments, issue digital receipts, and monitor collection status.') }}</flux:subheading>
+                <flux:subheading class="mt-1">{{ __('Monitor payments and review digital receipts. Collections are recorded by collectors in the field.') }}</flux:subheading>
             </div>
-            <flux:button icon="plus" variant="primary" wire:click="openCreateModal">
-                {{ __('Record Payment') }}
-            </flux:button>
         </div>
 
         {{-- Stats Row --}}
@@ -334,15 +205,7 @@ new class extends Component {
                                 <flux:badge :color="$collection->status->color()" size="sm">{{ $collection->status->label() }}</flux:badge>
                             </td>
                             <td class="px-6 py-3">
-                                <flux:dropdown>
-                                    <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
-                                    <flux:menu>
-                                        <flux:menu.item icon="eye" wire:click="viewReceipt({{ $collection->id }})">{{ __('View Receipt') }}</flux:menu.item>
-                                        <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $collection->id }})">{{ __('Edit') }}</flux:menu.item>
-                                        <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Collection', message: 'Are you sure you want to delete receipt {{ $collection->receipt_number }}?', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteCollection({{ $collection->id }}) })">{{ __('Delete') }}</flux:menu.item>
-                                    </flux:menu>
-                                </flux:dropdown>
+                                <flux:button variant="ghost" size="sm" icon="eye" wire:click="viewReceipt({{ $collection->id }})">{{ __('View') }}</flux:button>
                             </td>
                         </tr>
                         @empty
@@ -360,47 +223,6 @@ new class extends Component {
             </div>
         </div>
     </div>
-
-    {{-- Create/Edit Modal --}}
-    <flux:modal wire:model="showModal" class="max-w-lg">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ $editingCollectionId ? __('Edit Collection') : __('Record Payment') }}</flux:heading>
-                <flux:subheading>{{ $editingCollectionId ? __('Update payment details.') : __('Record a new fee collection.') }}</flux:subheading>
-            </div>
-
-            <form wire:submit="save" class="space-y-4">
-                <flux:select wire:model.live="formVendorId" :label="__('Vendor')" required>
-                    <flux:select.option :value="null">{{ __('— Select Vendor —') }}</flux:select.option>
-                    @foreach($this->vendorsWithStalls as $vendor)
-                    <flux:select.option :value="$vendor->id">{{ $vendor->contact_name }} — {{ $vendor->stall->stall_number }}</flux:select.option>
-                    @endforeach
-                </flux:select>
-                <div class="grid grid-cols-2 gap-4">
-                    <flux:input wire:model="formAmount" :label="__('Amount (₱)')" type="number" step="0.01" required />
-                    <flux:input wire:model="formPaymentDate" :label="__('Payment Date')" type="date" required />
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <flux:select wire:model="formPaymentMethod" :label="__('Payment Method')">
-                        <flux:select.option value="cash">{{ __('Cash') }}</flux:select.option>
-                        <flux:select.option value="gcash">{{ __('GCash') }}</flux:select.option>
-                        <flux:select.option value="bank_transfer">{{ __('Bank Transfer') }}</flux:select.option>
-                    </flux:select>
-                    <flux:select wire:model="formStatus" :label="__('Status')">
-                        <flux:select.option value="paid">{{ __('Paid') }}</flux:select.option>
-                        <flux:select.option value="pending">{{ __('Pending') }}</flux:select.option>
-                        <flux:select.option value="overdue">{{ __('Overdue') }}</flux:select.option>
-                    </flux:select>
-                </div>
-                <flux:textarea wire:model="formNotes" :label="__('Notes')" rows="2" />
-
-                <div class="flex justify-end gap-3 pt-2">
-                    <flux:button variant="ghost" wire:click="$set('showModal', false)">{{ __('Cancel') }}</flux:button>
-                    <flux:button variant="primary" type="submit">{{ $editingCollectionId ? __('Update') : __('Record Payment') }}</flux:button>
-                </div>
-            </form>
-        </div>
-    </flux:modal>
 
     {{-- View Receipt Modal --}}
     @if($viewingCollection)

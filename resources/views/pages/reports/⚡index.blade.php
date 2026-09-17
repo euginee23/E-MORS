@@ -1,15 +1,17 @@
 <?php
 
+use App\Actions\Reports\ExportCollectionReport;
 use App\Enums\PaymentStatus;
 use App\Models\Collection;
-use App\Models\Stall;
-use App\Models\Vendor;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
+    use WithPagination;
+
     public string $period = 'month';
 
     public function updatedPeriod(): void
@@ -90,154 +92,100 @@ new class extends Component {
         ];
     }
 
+    /**
+     * The row-level ledger shown in the spreadsheet grid. Paginated so a year's
+     * worth of collections does not have to render in one page.
+     */
     #[Computed]
-    public function monthlyTrend(): array
-    {
-        $months = [];
-        for ($i = 5; $i >= 0; $i--) {
-            $date = Carbon::now()->subMonths($i);
-            $amount = Collection::where('market_id', $this->marketId)
-                ->where('status', PaymentStatus::Paid)
-                ->whereYear('payment_date', $date->year)
-                ->whereMonth('payment_date', $date->month)
-                ->sum('amount');
-            $months[] = [
-                'label' => $date->format('M'),
-                'amount' => (float) $amount,
-            ];
-        }
-        $max = max(array_column($months, 'amount')) ?: 1;
-        foreach ($months as &$m) {
-            $m['pct'] = round(($m['amount'] / $max) * 100);
-        }
-        return $months;
-    }
-
-    #[Computed]
-    public function sectionBreakdown(): array
+    public function ledger()
     {
         [$start, $end] = $this->periodRange();
-        $sections = Collection::where('collections.market_id', $this->marketId)
-            ->where('collections.status', PaymentStatus::Paid)
-            ->whereBetween('collections.payment_date', [$start, $end])
-            ->join('stalls', 'collections.stall_id', '=', 'stalls.id')
-            ->selectRaw('stalls.section, SUM(collections.amount) as total')
-            ->groupBy('stalls.section')
-            ->orderBy('stalls.section')
-            ->get();
 
-        $grandTotal = $sections->sum('total') ?: 1;
-        $colors = ['A' => 'emerald', 'B' => 'blue', 'C' => 'purple', 'D' => 'amber'];
-
-        return $sections->map(fn ($s) => [
-            'name' => 'Section ' . $s->section,
-            'amount' => (float) $s->total,
-            'percentage' => round(($s->total / $grandTotal) * 100, 1),
-            'color' => $colors[$s->section] ?? 'zinc',
-        ])->all();
-    }
-
-    #[Computed]
-    public function topVendors(): \Illuminate\Support\Collection
-    {
-        [$start, $end] = $this->periodRange();
-        return Vendor::where('vendors.market_id', $this->marketId)
-            ->join('collections', 'vendors.id', '=', 'collections.vendor_id')
-            ->where('collections.status', PaymentStatus::Paid)
-            ->whereBetween('collections.payment_date', [$start, $end])
-            ->selectRaw('vendors.id, vendors.contact_name, SUM(collections.amount) as total_paid')
-            ->groupBy('vendors.id', 'vendors.contact_name')
-            ->orderByDesc('total_paid')
-            ->limit(5)
-            ->get()
-            ->map(function ($vendor, $index) {
-                $stall = Stall::where('vendor_id', $vendor->id)->first();
-                return [
-                    'rank' => $index + 1,
-                    'name' => $vendor->contact_name,
-                    'stall' => $stall?->stall_number ?? '—',
-                    'paid' => '₱ ' . number_format($vendor->total_paid, 0),
-                ];
-            });
-    }
-
-    #[Computed]
-    public function overduePayments(): \Illuminate\Support\Collection
-    {
-        return Collection::where('collections.market_id', $this->marketId)
-            ->where('collections.status', PaymentStatus::Overdue)
-            ->with(['vendor', 'stall'])
+        return Collection::where('market_id', $this->marketId)
+            ->whereBetween('payment_date', [$start, $end])
+            ->with(['vendor', 'stall', 'collector'])
             ->orderBy('payment_date')
-            ->limit(10)
-            ->get()
-            ->map(fn ($c) => [
-                'name' => $c->vendor?->contact_name ?? '—',
-                'stall' => $c->stall?->stall_number ?? '—',
-                'amount' => '₱ ' . number_format($c->amount, 0),
-                'days' => Carbon::parse($c->payment_date)->diffInDays(today()) . ' days',
-            ]);
+            ->orderBy('id')
+            ->paginate(25);
+    }
+
+    /**
+     * Totals for the whole period, not just the visible page.
+     */
+    #[Computed]
+    public function ledgerTotals(): array
+    {
+        [$start, $end] = $this->periodRange();
+
+        $query = Collection::where('market_id', $this->marketId)
+            ->whereBetween('payment_date', [$start, $end]);
+
+        return [
+            'count' => (int) $query->clone()->count(),
+            'amount' => (float) $query->clone()->sum('amount'),
+            'paid' => (float) $query->clone()->where('status', PaymentStatus::Paid)->sum('amount'),
+        ];
+    }
+
+    public function periodLabel(): string
+    {
+        return match ($this->period) {
+            'today' => 'Today',
+            'week' => 'This Week',
+            'month' => 'This Month',
+            'quarter' => 'This Quarter',
+            'year' => 'This Year',
+            default => 'Report',
+        };
     }
 
     public function export()
     {
         [$start, $end] = $this->periodRange();
-        $periodLabel = match ($this->period) {
-            'today' => 'Today',
-            'week' => 'This_Week',
-            'month' => 'This_Month',
-            'quarter' => 'This_Quarter',
-            'year' => 'This_Year',
-            default => 'Report',
-        };
 
-        return response()->streamDownload(function () use ($start, $end) {
-            $handle = fopen('php://output', 'w');
+        $exporter = new ExportCollectionReport(
+            marketId: $this->marketId,
+            start: $start,
+            end: $end,
+            periodLabel: $this->periodLabel(),
+        );
 
-            // Summary
-            fputcsv($handle, ['E-MORS Collection Report']);
-            fputcsv($handle, ['Generated', now()->format('M j, Y g:i A')]);
-            fputcsv($handle, []);
+        // PhpSpreadsheet writes to a stream, so stage the workbook in a temp file first.
+        $tempPath = tempnam(sys_get_temp_dir(), 'emors_report_');
 
-            // Collection details
-            fputcsv($handle, ['Receipt #', 'Date', 'Vendor', 'Stall', 'Section', 'Amount', 'Method', 'Collector', 'Status']);
+        try {
+            $exporter->writeTo($tempPath);
+        } catch (\Throwable $e) {
+            // Never leave the staging file behind when the workbook could not be built.
+            @unlink($tempPath);
 
-            Collection::where('market_id', $this->marketId)
-                ->whereBetween('payment_date', [$start, $end])
-                ->with(['vendor', 'stall', 'collector'])
-                ->orderBy('payment_date')
-                ->chunk(100, function ($collections) use ($handle) {
-                    foreach ($collections as $c) {
-                        fputcsv($handle, [
-                            $c->receipt_number,
-                            $c->payment_date->format('Y-m-d'),
-                            $c->vendor?->contact_name ?? '',
-                            $c->stall?->stall_number ?? '',
-                            $c->stall?->section ?? '',
-                            $c->amount,
-                            ucfirst($c->payment_method),
-                            $c->collector?->name ?? '',
-                            $c->status->label(),
-                        ]);
-                    }
-                });
+            throw $e;
+        }
 
-            fclose($handle);
-        }, "EMORS_Report_{$periodLabel}_" . now()->format('Ymd') . '.csv', [
-            'Content-Type' => 'text/csv',
+        $filename = 'EMORS_Report_' . str_replace(' ', '_', $this->periodLabel()) . '_' . now()->format('Ymd') . '.xlsx';
+
+        return response()->streamDownload(function () use ($tempPath) {
+            try {
+                readfile($tempPath);
+            } finally {
+                @unlink($tempPath);
+            }
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
     private function clearCache(): void
     {
+        $this->resetPage();
+
         unset(
             $this->totalRevenue,
             $this->avgDailyCollection,
             $this->collectionEfficiency,
             $this->outstandingBalance,
-            $this->monthlyTrend,
-            $this->sectionBreakdown,
-            $this->topVendors,
-            $this->overduePayments,
+            $this->ledger,
+            $this->ledgerTotals,
         );
     }
 
@@ -290,119 +238,75 @@ new class extends Component {
             </div>
         </div>
 
-        {{-- Charts Area --}}
-        <div class="grid gap-4 lg:grid-cols-2">
-            {{-- Revenue Trend --}}
-            <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                <div class="border-b border-orange-100 px-6 py-4 dark:border-neutral-700">
-                    <flux:heading size="lg">{{ __('Monthly Revenue Trend') }}</flux:heading>
+        {{-- Collection Ledger — spreadsheet layout --}}
+        <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
+            <div class="flex flex-col gap-2 border-b border-orange-100 px-6 py-4 dark:border-zinc-700 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <flux:heading size="lg">{{ __('Collection Ledger') }}</flux:heading>
+                    <flux:subheading class="mt-0.5">{{ $this->periodLabel() }} · {{ $this->ledgerTotals['count'] }} {{ __('transactions') }}</flux:subheading>
                 </div>
-                <div class="p-6">
-                    @php $trend = $this->monthlyTrend; @endphp
-                    @if(count($trend) > 0 && max(array_column($trend, 'amount')) > 0)
-                    <div class="flex h-48 items-end gap-2">
-                        @foreach($trend as $m)
-                        @php $barH = $m['amount'] > 0 ? max(4, (int) round($m['pct'] * 1.68)) : 0; @endphp
-                        <div class="flex flex-1 flex-col items-center gap-1">
-                            <div class="w-full rounded-t bg-blue-500/80 transition-all hover:bg-blue-500 cursor-pointer" style="height: {{ $barH }}px" title="₱ {{ number_format($m['amount'], 0) }}"></div>
-                            <flux:text class="shrink-0 text-xs text-zinc-500">{{ $m['label'] }}</flux:text>
-                        </div>
-                        @endforeach
-                    </div>
-                    @else
-                    <div class="flex h-48 items-center justify-center text-zinc-400">
-                        {{ __('No revenue data for this period.') }}
-                    </div>
+                <flux:text class="text-sm text-zinc-500">
+                    {{ __('Period total') }}:
+                    <span class="font-mono font-semibold text-zinc-900 dark:text-zinc-100">₱ {{ number_format($this->ledgerTotals['amount'], 2) }}</span>
+                </flux:text>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse text-sm">
+                    <thead class="sticky top-0 z-10">
+                        <tr class="bg-orange-50 text-left dark:bg-zinc-800">
+                            <th class="w-12 border border-orange-100 px-3 py-2 text-center font-semibold text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">#</th>
+                            <th class="border border-orange-100 px-3 py-2 font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">{{ __('Receipt No.') }}</th>
+                            <th class="border border-orange-100 px-3 py-2 font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">{{ __('Date') }}</th>
+                            <th class="border border-orange-100 px-3 py-2 font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">{{ __('Vendor') }}</th>
+                            <th class="border border-orange-100 px-3 py-2 font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">{{ __('Stall') }}</th>
+                            <th class="border border-orange-100 px-3 py-2 font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">{{ __('Section') }}</th>
+                            <th class="border border-orange-100 px-3 py-2 text-right font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">{{ __('Amount') }}</th>
+                            <th class="border border-orange-100 px-3 py-2 font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">{{ __('Method') }}</th>
+                            <th class="border border-orange-100 px-3 py-2 font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">{{ __('Collector') }}</th>
+                            <th class="border border-orange-100 px-3 py-2 font-semibold text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">{{ __('Status') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($this->ledger as $i => $entry)
+                        <tr class="{{ $i % 2 === 1 ? 'bg-orange-50/30 dark:bg-zinc-800/30' : '' }} hover:bg-orange-50 dark:hover:bg-zinc-800/60" wire:key="ledger-{{ $entry->id }}">
+                            <td class="border border-orange-100 px-3 py-1.5 text-center font-mono text-xs text-zinc-400 dark:border-zinc-700">{{ $this->ledger->firstItem() + $i }}</td>
+                            <td class="border border-orange-100 px-3 py-1.5 font-mono text-xs text-zinc-900 dark:border-zinc-700 dark:text-zinc-100">{{ $entry->receipt_number }}</td>
+                            <td class="border border-orange-100 px-3 py-1.5 font-mono text-xs text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">{{ $entry->payment_date?->format('Y-m-d') ?? '—' }}</td>
+                            <td class="border border-orange-100 px-3 py-1.5 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">{{ $entry->vendor?->contact_name ?? '—' }}</td>
+                            <td class="border border-orange-100 px-3 py-1.5 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">{{ $entry->stall?->stall_number ?? '—' }}</td>
+                            <td class="border border-orange-100 px-3 py-1.5 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">{{ $entry->stall?->section ?? '—' }}</td>
+                            <td class="border border-orange-100 px-3 py-1.5 text-right font-mono text-zinc-900 dark:border-zinc-700 dark:text-zinc-100">{{ number_format($entry->amount, 2) }}</td>
+                            <td class="border border-orange-100 px-3 py-1.5 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">{{ ucfirst(str_replace('_', ' ', $entry->payment_method)) }}</td>
+                            <td class="border border-orange-100 px-3 py-1.5 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">{{ $entry->collector?->name ?? '—' }}</td>
+                            <td class="border border-orange-100 px-3 py-1.5 dark:border-zinc-700">
+                                <flux:badge :color="$entry->status->color()" size="sm">{{ $entry->status->label() }}</flux:badge>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="10" class="border border-orange-100 px-3 py-8 text-center text-zinc-500 dark:border-zinc-700">
+                                {{ __('No collections recorded for this period.') }}
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                    @if($this->ledgerTotals['count'] > 0)
+                    <tfoot>
+                        <tr class="bg-orange-100/60 font-semibold dark:bg-zinc-800">
+                            <td colspan="6" class="border border-orange-100 px-3 py-2 text-right text-zinc-700 dark:border-zinc-700 dark:text-zinc-200">{{ __('TOTAL') }} ({{ $this->periodLabel() }})</td>
+                            <td class="border border-orange-100 px-3 py-2 text-right font-mono text-zinc-900 dark:border-zinc-700 dark:text-zinc-100">{{ number_format($this->ledgerTotals['amount'], 2) }}</td>
+                            <td colspan="3" class="border border-orange-100 px-3 py-2 text-zinc-500 dark:border-zinc-700">
+                                {{ __('Paid') }}: <span class="font-mono">{{ number_format($this->ledgerTotals['paid'], 2) }}</span>
+                            </td>
+                        </tr>
+                    </tfoot>
                     @endif
-                </div>
+                </table>
             </div>
 
-            {{-- Collection by Section --}}
-            <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                <div class="border-b border-orange-100 px-6 py-4 dark:border-neutral-700">
-                    <flux:heading size="lg">{{ __('Collection by Section') }}</flux:heading>
-                </div>
-                <div class="p-6">
-                    @php $sections = $this->sectionBreakdown; @endphp
-                    @if(count($sections) > 0)
-                    <div class="space-y-4">
-                        @foreach($sections as $section)
-                        <div>
-                            <div class="mb-1 flex items-center justify-between">
-                                <flux:text class="text-sm font-medium">{{ $section['name'] }}</flux:text>
-                                <flux:text class="text-sm text-zinc-500">₱ {{ number_format($section['amount']) }} ({{ $section['percentage'] }}%)</flux:text>
-                            </div>
-                            <div class="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                                @php
-                                    $barColor = match($section['color']) {
-                                        'emerald' => 'bg-emerald-500',
-                                        'blue' => 'bg-blue-500',
-                                        'purple' => 'bg-purple-500',
-                                        'amber' => 'bg-amber-500',
-                                        default => 'bg-zinc-500',
-                                    };
-                                @endphp
-                                <div class="h-full rounded-full {{ $barColor }}" style="width: {{ $section['percentage'] }}%"></div>
-                            </div>
-                        </div>
-                        @endforeach
-                    </div>
-                    @else
-                    <div class="flex h-32 items-center justify-center text-zinc-400">
-                        {{ __('No section data for this period.') }}
-                    </div>
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        {{-- Top Vendors & Overdue --}}
-        <div class="grid gap-4 lg:grid-cols-2">
-            {{-- Top Performing Vendors --}}
-            <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                <div class="border-b border-orange-100 px-6 py-4 dark:border-neutral-700">
-                    <flux:heading size="lg">{{ __('Top Performing Vendors') }}</flux:heading>
-                </div>
-                <div class="divide-y divide-orange-100 dark:divide-zinc-700">
-                    @forelse($this->topVendors as $vendor)
-                    <div class="flex items-center gap-4 px-6 py-3">
-                        <span class="flex size-8 items-center justify-center rounded-full bg-zinc-100 text-sm font-bold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{{ $vendor['rank'] }}</span>
-                        <div class="flex-1">
-                            <flux:text class="font-medium text-zinc-900 dark:text-zinc-100">{{ $vendor['name'] }}</flux:text>
-                            <flux:text class="text-xs text-zinc-500">{{ $vendor['stall'] }}</flux:text>
-                        </div>
-                        <flux:text class="font-semibold text-zinc-900 dark:text-zinc-100">{{ $vendor['paid'] }}</flux:text>
-                    </div>
-                    @empty
-                    <div class="px-6 py-8 text-center">
-                        <flux:text class="text-sm text-zinc-500">{{ __('No vendor data for this period.') }}</flux:text>
-                    </div>
-                    @endforelse
-                </div>
-            </div>
-
-            {{-- Overdue Payments --}}
-            <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                <div class="border-b border-orange-100 px-6 py-4 dark:border-neutral-700">
-                    <flux:heading size="lg">{{ __('Overdue Payments') }}</flux:heading>
-                </div>
-                <div class="divide-y divide-orange-100 dark:divide-zinc-700">
-                    @forelse($this->overduePayments as $item)
-                    <div class="flex items-center gap-4 px-6 py-3">
-                        <flux:icon.exclamation-triangle class="size-5 text-red-500" />
-                        <div class="flex-1">
-                            <flux:text class="font-medium text-zinc-900 dark:text-zinc-100">{{ $item['name'] }}</flux:text>
-                            <flux:text class="text-xs text-zinc-500">{{ $item['stall'] }} · {{ __('Overdue by :days', ['days' => $item['days']]) }}</flux:text>
-                        </div>
-                        <flux:text class="font-semibold text-red-600 dark:text-red-400">{{ $item['amount'] }}</flux:text>
-                    </div>
-                    @empty
-                    <div class="px-6 py-8 text-center">
-                        <flux:icon.check-circle class="mx-auto size-8 text-emerald-500" />
-                        <flux:text class="mt-2 text-sm text-zinc-500">{{ __('No overdue payments') }}</flux:text>
-                    </div>
-                    @endforelse
-                </div>
+            <div class="border-t border-orange-100 px-6 py-3 dark:border-zinc-700">
+                {{ $this->ledger->links() }}
             </div>
         </div>
     </div>

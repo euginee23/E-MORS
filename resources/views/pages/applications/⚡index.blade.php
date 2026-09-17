@@ -90,10 +90,13 @@ new class extends Component {
             ->where('status', 'available')
             ->findOrFail($this->selectedStallId);
 
-        // Assign
+        // Assign, seeding the same default rental term the vendors and stalls
+        // pages use — without it the stall would have no expiry to track or notice on.
         $stall->update([
             'vendor_id' => $vendor->id,
             'status' => 'occupied',
+            'rent_start' => now()->toDateString(),
+            'rent_expiry' => now()->addYear()->toDateString(),
         ]);
 
         $vendor->update(['permit_status' => 'active']);

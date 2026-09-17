@@ -33,14 +33,14 @@ new class extends Component {
             ->unique();
 
         $vendors = Vendor::where('market_id', $this->marketId)
-            ->has('stall')
-            ->with(['stall', 'collections' => fn ($q) => $q->where('status', PaymentStatus::Paid)->latest('payment_date')->limit(1)])
+            ->has('stalls')
+            ->with(['stalls', 'collections' => fn ($q) => $q->where('status', PaymentStatus::Paid)->latest('payment_date')->limit(1)])
             ->when($this->search, fn ($q) => $q->where(fn ($q2) =>
                 $q2->where('contact_name', 'like', '%' . $this->search . '%')
                    ->orWhere('business_name', 'like', '%' . $this->search . '%')
             ))
             ->when($this->sectionFilter !== 'all', fn ($q) =>
-                $q->whereHas('stall', fn ($q2) => $q2->where('section', $this->sectionFilter))
+                $q->whereHas('stalls', fn ($q2) => $q2->where('section', $this->sectionFilter))
             )
             ->orderBy('contact_name')
             ->get();
@@ -75,7 +75,7 @@ new class extends Component {
     #[Computed]
     public function totalAssigned(): int
     {
-        return Vendor::where('market_id', $this->marketId)->has('stall')->count();
+        return Vendor::where('market_id', $this->marketId)->has('stalls')->count();
     }
 
     #[Computed]
@@ -103,7 +103,7 @@ new class extends Component {
             ->pluck('vendor_id');
 
         return Vendor::where('market_id', $this->marketId)
-            ->has('stall')
+            ->has('stalls')
             ->whereNotIn('id', $paidTodayIds)
             ->whereDoesntHave('collections', fn ($q) =>
                 $q->where('status', PaymentStatus::Paid)
@@ -231,9 +231,9 @@ new class extends Component {
                                     <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $vendor->contact_name }}</span>
                                 </div>
                             </td>
-                            <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $vendor->stall?->stall_number }}</td>
-                            <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">Section {{ $vendor->stall?->section }}</td>
-                            <td class="px-6 py-3 font-medium text-zinc-900 dark:text-zinc-100">₱ {{ number_format($vendor->stall?->monthly_rate, 0) }}</td>
+                            <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $vendor->stalls->pluck('stall_number')->join(', ') }}</td>
+                            <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">Section {{ $vendor->stalls->pluck('section')->unique()->sort()->join(', ') }}</td>
+                            <td class="px-6 py-3 font-medium text-zinc-900 dark:text-zinc-100">₱ {{ number_format($vendor->stalls->sum('monthly_rate'), 0) }}</td>
                             <td class="px-6 py-3">
                                 @if($vendor->today_status === 'paid')
                                     <flux:badge color="lime" size="sm">Paid</flux:badge>

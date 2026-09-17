@@ -26,13 +26,16 @@ new class extends Component {
     #[Computed]
     public function vendor()
     {
-        return Auth::user()->vendor?->load('stall');
+        return Auth::user()->vendor?->load('stalls');
     }
 
+    /**
+     * What the vendor owes each month across every stall they rent.
+     */
     #[Computed]
-    public function stall()
+    public function monthlyRate(): float
     {
-        return $this->vendor?->stall;
+        return (float) ($this->vendor?->stalls->sum('monthly_rate') ?? 0);
     }
 
     #[Computed]
@@ -131,13 +134,13 @@ new class extends Component {
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="flex items-center justify-between">
-                    <flux:text class="text-sm font-medium">{{ __('Monthly Rate') }}</flux:text>
+                    <flux:text class="text-sm font-medium">{{ __('Total Monthly Rate') }}</flux:text>
                     <div class="flex size-10 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/20">
                         <flux:icon.calendar class="size-5 text-amber-600 dark:text-amber-400" />
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">₱ {{ number_format($this->stall?->monthly_rate ?? 0, 0) }}</flux:heading>
+                    <flux:heading size="xl" class="text-2xl font-bold">₱ {{ number_format($this->monthlyRate, 0) }}</flux:heading>
                     <flux:text class="mt-1 text-xs text-amber-600 dark:text-amber-400">Due: {{ now()->endOfMonth()->format('M j, Y') }}</flux:text>
                 </div>
             </div>

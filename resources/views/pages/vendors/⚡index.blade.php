@@ -2,6 +2,7 @@
 
 use App\Actions\Notices\GenerateVendorNotices;
 use App\Enums\PermitStatus;
+use App\Enums\RentalStatus;
 use App\Mail\StallAssigned;
 use App\Models\Stall;
 use App\Models\User;
@@ -36,6 +37,12 @@ new class extends Component {
     public ?int $assigningVendorId = null;
     public string $assigningVendorName = '';
     public ?int $selectedStallId = null;
+    public ?string $assignRentStart = null;
+    public ?string $assignRentExpiry = null;
+
+    // View vendor profile
+    public bool $showViewModal = false;
+    public ?int $viewingVendorId = null;
 
     public function updatedSearch(): void
     {
@@ -57,14 +64,48 @@ new class extends Component {
     public function vendors()
     {
         return Vendor::where('market_id', $this->marketId)
-            ->with(['stall', 'user'])
+            ->with(['stall', 'stalls', 'user'])
             ->when($this->search, fn ($q) => $q->where(fn ($q2) =>
                 $q2->where('business_name', 'like', '%' . $this->search . '%')
                    ->orWhere('contact_name', 'like', '%' . $this->search . '%')
             ))
-            ->when($this->statusFilter !== 'all', fn ($q) => $q->where('permit_status', $this->statusFilter))
+            ->when($this->statusFilter !== 'all', fn ($q) => $this->scopeRentalStatus($q, $this->statusFilter))
             ->orderBy('created_at', 'desc')
             ->paginate(10);
+    }
+
+    /**
+     * Narrow a vendor query to those whose worst stall rental status matches $status.
+     * Mirrors Vendor::stallRentalStatus(), which rolls several stalls up to the most urgent one.
+     */
+    private function scopeRentalStatus($query, string $status)
+    {
+        $today = now()->startOfDay()->toDateString();
+        $soon = now()->startOfDay()->addDays(30)->toDateString();
+
+        $hasExpired = fn ($q) => $q->whereNotNull('rent_expiry')->whereDate('rent_expiry', '<', $today);
+        $hasExpiring = fn ($q) => $q->whereNotNull('rent_expiry')
+            ->whereDate('rent_expiry', '>=', $today)
+            ->whereDate('rent_expiry', '<=', $soon);
+
+        return match ($status) {
+            RentalStatus::Unassigned->value => $query->whereDoesntHave('stalls'),
+            RentalStatus::Expired->value => $query->whereHas('stalls', $hasExpired),
+            RentalStatus::Expiring->value => $query->whereHas('stalls', $hasExpiring)
+                ->whereDoesntHave('stalls', $hasExpired),
+            RentalStatus::Active->value => $query->has('stalls')
+                ->whereDoesntHave('stalls', $hasExpired)
+                ->whereDoesntHave('stalls', $hasExpiring),
+            default => $query,
+        };
+    }
+
+    private function countByRentalStatus(RentalStatus $status): int
+    {
+        return $this->scopeRentalStatus(
+            Vendor::where('market_id', $this->marketId),
+            $status->value
+        )->count();
     }
 
     #[Computed]
@@ -76,19 +117,38 @@ new class extends Component {
     #[Computed]
     public function activeCount(): int
     {
-        return Vendor::where('market_id', $this->marketId)->where('permit_status', PermitStatus::Active)->count();
+        return $this->countByRentalStatus(RentalStatus::Active);
     }
 
     #[Computed]
-    public function pendingCount(): int
+    public function expiringCount(): int
     {
-        return Vendor::where('market_id', $this->marketId)->where('permit_status', PermitStatus::Pending)->count();
+        return $this->countByRentalStatus(RentalStatus::Expiring);
     }
 
     #[Computed]
     public function expiredCount(): int
     {
-        return Vendor::where('market_id', $this->marketId)->where('permit_status', PermitStatus::Expired)->count();
+        return $this->countByRentalStatus(RentalStatus::Expired);
+    }
+
+    #[Computed]
+    public function viewingVendor(): ?Vendor
+    {
+        if (! $this->viewingVendorId) {
+            return null;
+        }
+
+        return Vendor::where('market_id', $this->marketId)
+            ->with(['stalls' => fn ($q) => $q->orderBy('section')->orderBy('stall_number'), 'user'])
+            ->find($this->viewingVendorId);
+    }
+
+    public function openViewModal(int $vendorId): void
+    {
+        $this->viewingVendorId = $vendorId;
+        unset($this->viewingVendor);
+        $this->showViewModal = true;
     }
 
     public function openCreateModal(): void
@@ -148,10 +208,13 @@ new class extends Component {
     {
         $vendor = Vendor::where('market_id', $this->marketId)->findOrFail($vendorId);
 
-        // Unassign any stall
-        if ($vendor->stall) {
-            $vendor->stall->update(['vendor_id' => null, 'status' => 'available']);
-        }
+        // Unassign every stall this vendor rents
+        $vendor->stalls()->update([
+            'vendor_id' => null,
+            'status' => 'available',
+            'rent_start' => null,
+            'rent_expiry' => null,
+        ]);
 
         $vendor->delete();
         $this->dispatch('toast', message: 'Vendor deleted successfully.', type: 'success');
@@ -172,7 +235,7 @@ new class extends Component {
 
     private function clearCache(): void
     {
-        unset($this->vendors, $this->totalVendors, $this->activeCount, $this->pendingCount, $this->expiredCount);
+        unset($this->vendors, $this->totalVendors, $this->activeCount, $this->expiringCount, $this->expiredCount, $this->viewingVendor);
     }
 
     #[Computed]
@@ -191,6 +254,9 @@ new class extends Component {
         $this->assigningVendorId = $vendor->id;
         $this->assigningVendorName = $vendor->contact_name;
         $this->selectedStallId = null;
+        $this->assignRentStart = now()->toDateString();
+        $this->assignRentExpiry = now()->addYear()->toDateString();
+        $this->resetValidation();
         $this->showAssignModal = true;
     }
 
@@ -198,8 +264,13 @@ new class extends Component {
     {
         $this->validate([
             'selectedStallId' => ['required', 'integer'],
+            'assignRentStart' => ['nullable', 'date'],
+            'assignRentExpiry' => ['nullable', 'date', 'after_or_equal:assignRentStart'],
         ], [
             'selectedStallId.required' => 'Please select a stall.',
+        ], [
+            'assignRentStart' => 'rent start',
+            'assignRentExpiry' => 'rent expiry',
         ]);
 
         $vendor = Vendor::where('market_id', $this->marketId)
@@ -210,7 +281,12 @@ new class extends Component {
             ->where('status', 'available')
             ->findOrFail($this->selectedStallId);
 
-        $stall->update(['vendor_id' => $vendor->id, 'status' => 'occupied']);
+        $stall->update([
+            'vendor_id' => $vendor->id,
+            'status' => 'occupied',
+            'rent_start' => $this->assignRentStart ?: null,
+            'rent_expiry' => $this->assignRentExpiry ?: null,
+        ]);
         $vendor->update(['permit_status' => 'active']);
 
         if ($vendor->user) {
@@ -222,6 +298,8 @@ new class extends Component {
         $this->assigningVendorId = null;
         $this->assigningVendorName = '';
         $this->selectedStallId = null;
+        $this->assignRentStart = null;
+        $this->assignRentExpiry = null;
 
         $this->dispatch('toast', message: "Stall {$stall->stall_number} assigned to {$vendor->contact_name} successfully.", type: 'success');
         unset($this->availableStalls);
@@ -310,8 +388,8 @@ new class extends Component {
                 <flux:heading size="xl" class="mt-1 text-2xl font-bold text-emerald-600">{{ $this->activeCount }}</flux:heading>
             </div>
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                <flux:text class="text-sm text-zinc-500">{{ __('Pending Renewal') }}</flux:text>
-                <flux:heading size="xl" class="mt-1 text-2xl font-bold text-amber-600">{{ $this->pendingCount }}</flux:heading>
+                <flux:text class="text-sm text-zinc-500">{{ __('Expiring Soon') }}</flux:text>
+                <flux:heading size="xl" class="mt-1 text-2xl font-bold text-amber-600">{{ $this->expiringCount }}</flux:heading>
             </div>
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <flux:text class="text-sm text-zinc-500">{{ __('Expired') }}</flux:text>
@@ -324,11 +402,11 @@ new class extends Component {
             <div class="flex-1">
                 <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="{{ __('Search vendors by name or business...') }}" />
             </div>
-            <flux:select wire:model.live="statusFilter" class="sm:w-40">
-                <flux:select.option value="all">{{ __('All Status') }}</flux:select.option>
-                <flux:select.option value="active">{{ __('Active') }}</flux:select.option>
-                <flux:select.option value="pending">{{ __('Pending') }}</flux:select.option>
-                <flux:select.option value="expired">{{ __('Expired') }}</flux:select.option>
+            <flux:select wire:model.live="statusFilter" class="sm:w-48">
+                <flux:select.option value="all">{{ __('All Stall Status') }}</flux:select.option>
+                @foreach(\App\Enums\RentalStatus::cases() as $rentalStatus)
+                <flux:select.option :value="$rentalStatus->value">{{ $rentalStatus->label() }}</flux:select.option>
+                @endforeach
             </flux:select>
         </div>
 
@@ -340,9 +418,9 @@ new class extends Component {
                         <tr class="border-b border-orange-100 text-left dark:border-zinc-700">
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Name') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Business') }}</th>
-                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stall') }}</th>
-                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Permit Status') }}</th>
-                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Permit Expiry') }}</th>
+                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stalls') }}</th>
+                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stall Status') }}</th>
+                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stall Expiry') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Actions') }}</th>
                         </tr>
                     </thead>
@@ -356,19 +434,28 @@ new class extends Component {
                                 </div>
                             </td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $vendor->business_name }}</td>
-                            <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $vendor->stall?->stall_number ?? '—' }}</td>
-                            <td class="px-6 py-3">
-                                <flux:badge :color="$vendor->permit_status->color()" size="sm">{{ $vendor->permit_status->label() }}</flux:badge>
+                            @php
+                                $rentalStatus = $vendor->stallRentalStatus();
+                                $rentExpiry = $vendor->soonestRentExpiry();
+                            @endphp
+                            <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">
+                                @if($vendor->stalls->isEmpty())
+                                    —
+                                @else
+                                    {{ $vendor->stalls->pluck('stall_number')->join(', ') }}
+                                @endif
                             </td>
-                            <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $vendor->permit_expiry?->format('M j, Y') ?? '—' }}</td>
+                            <td class="px-6 py-3">
+                                <flux:badge :color="$rentalStatus->color()" size="sm">{{ $rentalStatus->label() }}</flux:badge>
+                            </td>
+                            <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $rentExpiry?->format('M j, Y') ?? '—' }}</td>
                             <td class="px-6 py-3">
                                 <flux:dropdown>
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
                                     <flux:menu>
+                                        <flux:menu.item icon="eye" wire:click="openViewModal({{ $vendor->id }})">{{ __('View') }}</flux:menu.item>
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $vendor->id }})">{{ __('Edit') }}</flux:menu.item>
-                                        @if($vendor->permit_status === \App\Enums\PermitStatus::Pending && !$vendor->stall)
                                         <flux:menu.item icon="building-storefront" wire:click="openAssignModal({{ $vendor->id }})">{{ __('Assign Stall') }}</flux:menu.item>
-                                        @endif
                                         <flux:menu.item icon="bell-alert" wire:click="generateVendorNotice({{ $vendor->id }})" wire:loading.attr="disabled" wire:target="generateVendorNotice">
                                             <span wire:loading.remove wire:target="generateVendorNotice">{{ __('Generate Notice') }}</span>
                                             <span wire:loading wire:target="generateVendorNotice" class="inline-flex items-center gap-1.5">
@@ -455,11 +542,111 @@ new class extends Component {
                     <p class="mt-2 text-sm text-amber-600 dark:text-amber-400">No available stalls at the moment.</p>
                     @endif
                 </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <flux:input wire:model="assignRentStart" :label="__('Rent Start')" type="date" />
+                    <flux:input wire:model="assignRentExpiry" :label="__('Rent Expiry')" type="date" />
+                </div>
                 <div class="flex justify-end gap-3 pt-2">
                     <flux:button variant="ghost" wire:click="$set('showAssignModal', false)">{{ __('Cancel') }}</flux:button>
                     <flux:button variant="primary" type="submit" :disabled="$this->availableStalls->isEmpty()">{{ __('Assign & Notify') }}</flux:button>
                 </div>
             </form>
         </div>
+    </flux:modal>
+
+    {{-- Vendor Profile (read-only) --}}
+    <flux:modal wire:model="showViewModal" class="max-w-2xl">
+        @if($this->viewingVendor)
+        @php $vendorProfile = $this->viewingVendor; @endphp
+        <div class="space-y-6">
+            <div class="flex items-center gap-4">
+                <flux:avatar size="lg" :name="$vendorProfile->contact_name" />
+                <div>
+                    <flux:heading size="lg">{{ $vendorProfile->contact_name }}</flux:heading>
+                    <flux:subheading>{{ $vendorProfile->business_name }}</flux:subheading>
+                </div>
+            </div>
+
+            {{-- Identity --}}
+            <dl class="grid grid-cols-2 gap-4 rounded-xl border border-orange-100 p-4 dark:border-zinc-700">
+                <div>
+                    <dt class="text-xs text-zinc-500">{{ __('Category') }}</dt>
+                    <dd class="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">{{ $vendorProfile->product_type ?: '—' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-zinc-500">{{ __('Contact Phone') }}</dt>
+                    <dd class="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">{{ $vendorProfile->contact_phone ?: '—' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-zinc-500">{{ __('Email') }}</dt>
+                    <dd class="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">{{ $vendorProfile->user?->email ?? '—' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-zinc-500">{{ __('Address') }}</dt>
+                    <dd class="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">{{ $vendorProfile->address ?: '—' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-zinc-500">{{ __('Permit Number') }}</dt>
+                    <dd class="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">{{ $vendorProfile->permit_number ?: '—' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-zinc-500">{{ __('Permit Status') }}</dt>
+                    <dd class="mt-0.5">
+                        <flux:badge :color="$vendorProfile->permit_status->color()" size="sm">{{ $vendorProfile->permit_status->label() }}</flux:badge>
+                        @if($vendorProfile->permit_expiry)
+                        <span class="ml-1 text-xs text-zinc-500">{{ __('until') }} {{ $vendorProfile->permit_expiry->format('M j, Y') }}</span>
+                        @endif
+                    </dd>
+                </div>
+            </dl>
+
+            {{-- Stalls rented --}}
+            <div>
+                <div class="mb-2 flex items-center justify-between">
+                    <flux:heading size="sm">{{ __('Stalls Rented') }} ({{ $vendorProfile->stalls->count() }})</flux:heading>
+                    <flux:text class="text-sm text-zinc-500">
+                        {{ __('Total monthly rent') }}:
+                        <span class="font-semibold text-zinc-900 dark:text-zinc-100">₱ {{ number_format($vendorProfile->totalMonthlyRent(), 2) }}</span>
+                    </flux:text>
+                </div>
+                <div class="overflow-x-auto rounded-xl border border-orange-100 dark:border-zinc-700">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-orange-100 text-left dark:border-zinc-700">
+                                <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Stall') }}</th>
+                                <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Section') }}</th>
+                                <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Size') }}</th>
+                                <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Monthly Rent') }}</th>
+                                <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Status') }}</th>
+                                <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Expiry') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-orange-100 dark:divide-zinc-700">
+                            @forelse($vendorProfile->stalls as $rentedStall)
+                            <tr>
+                                <td class="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-100">{{ $rentedStall->stall_number }}</td>
+                                <td class="px-4 py-2 text-zinc-700 dark:text-zinc-300">{{ $rentedStall->section }}</td>
+                                <td class="px-4 py-2 text-zinc-700 dark:text-zinc-300">{{ $rentedStall->size }}</td>
+                                <td class="px-4 py-2 text-zinc-700 dark:text-zinc-300">₱ {{ number_format($rentedStall->monthly_rate, 2) }}</td>
+                                <td class="px-4 py-2">
+                                    <flux:badge :color="$rentedStall->rental_status->color()" size="sm">{{ $rentedStall->rental_status->label() }}</flux:badge>
+                                </td>
+                                <td class="px-4 py-2 text-zinc-700 dark:text-zinc-300">{{ $rentedStall->rent_expiry?->format('M j, Y') ?? '—' }}</td>
+                            </tr>
+                            @empty
+                            <tr>
+                                <td colspan="6" class="px-4 py-6 text-center text-zinc-500">{{ __('This vendor is not renting any stall yet.') }}</td>
+                            </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <flux:button variant="ghost" wire:click="$set('showViewModal', false)">{{ __('Close') }}</flux:button>
+            </div>
+        </div>
+        @endif
     </flux:modal>
 </div>

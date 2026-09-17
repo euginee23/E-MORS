@@ -18,7 +18,7 @@ new class extends Component {
     #[Computed]
     public function vendor()
     {
-        return Auth::user()->vendor?->load('stall');
+        return Auth::user()->vendor?->load('stalls');
     }
 
     #[Computed]
@@ -125,8 +125,8 @@ new class extends Component {
                             <dd class="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">{{ auth()->user()->email }}</dd>
                         </div>
                         <div class="rounded-xl border border-orange-50 bg-orange-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
-                            <dt class="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{{ __('Stall') }}</dt>
-                            <dd class="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">{{ $this->vendor->stall?->stall_number ?? 'Unassigned' }}</dd>
+                            <dt class="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{{ __('Stalls') }}</dt>
+                            <dd class="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">{{ $this->vendor->stalls->pluck('stall_number')->join(', ') ?: 'Unassigned' }}</dd>
                         </div>
                         <div class="rounded-xl border border-orange-50 bg-orange-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
                             <dt class="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{{ __('Market') }}</dt>

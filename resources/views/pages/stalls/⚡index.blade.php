@@ -24,6 +24,8 @@ new class extends Component {
     public string $formMonthlyRate = '3500';
     public string $formStatus = 'available';
     public ?int $formVendorId = null;
+    public ?string $formRentStart = null;
+    public ?string $formRentExpiry = null;
 
 
 
@@ -53,9 +55,21 @@ new class extends Component {
     {
         if ($this->formVendorId) {
             $this->formStatus = 'occupied';
-        } elseif ($this->formStatus === 'occupied') {
+
+            // Offer the same default term the vendors page uses, so a stall assigned
+            // from either screen ends up with a comparable rental period.
+            $this->formRentStart ??= now()->toDateString();
+            $this->formRentExpiry ??= now()->addYear()->toDateString();
+
+            return;
+        }
+
+        if ($this->formStatus === 'occupied') {
             $this->formStatus = 'available';
         }
+
+        $this->formRentStart = null;
+        $this->formRentExpiry = null;
     }
 
     #[Computed]
@@ -120,11 +134,15 @@ new class extends Component {
         return Stall::where('market_id', $this->marketId)->where('status', StallStatus::Maintenance)->count();
     }
 
+    /**
+     * Every vendor in the market stays selectable — a vendor may rent as many stalls as they want,
+     * so having one already must not remove them from this list.
+     */
     #[Computed]
     public function availableVendors(): \Illuminate\Support\Collection
     {
         return Vendor::where('market_id', $this->marketId)
-            ->whereDoesntHave('stall', fn ($q) => $q->when($this->editingStallId, fn ($q2) => $q2->where('stalls.id', '!=', $this->editingStallId)))
+            ->withCount('stalls')
             ->orderBy('contact_name')
             ->get();
     }
@@ -155,6 +173,8 @@ new class extends Component {
         $this->formMonthlyRate = (string) $stall->monthly_rate;
         $this->formStatus = $stall->status->value;
         $this->formVendorId = $stall->vendor_id;
+        $this->formRentStart = $stall->rent_start?->format('Y-m-d');
+        $this->formRentExpiry = $stall->rent_expiry?->format('Y-m-d');
         $this->showModal = true;
     }
 
@@ -162,7 +182,7 @@ new class extends Component {
     {
         $this->validate([
             'formStallNumber' => [
-                'required', 'string', 'max:10',
+                'required', 'string', 'max:12',
                 $this->editingStallId
                     ? Rule::unique('stalls', 'stall_number')->where('market_id', $this->marketId)->ignore($this->editingStallId)
                     : Rule::unique('stalls', 'stall_number')->where('market_id', $this->marketId),
@@ -172,6 +192,15 @@ new class extends Component {
             'formMonthlyRate' => ['required', 'numeric', 'min:0'],
             'formStatus' => ['required', Rule::in(array_column(StallStatus::cases(), 'value'))],
             'formVendorId' => ['nullable', 'exists:vendors,id'],
+            'formRentStart' => ['nullable', 'date'],
+            'formRentExpiry' => ['nullable', 'date', 'after_or_equal:formRentStart'],
+        ], [], [
+            'formStallNumber' => 'stall number',
+            'formSection' => 'section',
+            'formSize' => 'size',
+            'formMonthlyRate' => 'monthly rate',
+            'formRentStart' => 'rent start',
+            'formRentExpiry' => 'rent expiry',
         ]);
 
         // If vendor is assigned, status must be occupied; if unassigned, can't be occupied
@@ -189,6 +218,9 @@ new class extends Component {
             'monthly_rate' => $this->formMonthlyRate,
             'status' => $status,
             'vendor_id' => $this->formVendorId ?: null,
+            // A rental term only means something while a vendor holds the stall.
+            'rent_start' => $this->formVendorId ? ($this->formRentStart ?: null) : null,
+            'rent_expiry' => $this->formVendorId ? ($this->formRentExpiry ?: null) : null,
         ];
 
         if ($this->editingStallId) {
@@ -215,7 +247,7 @@ new class extends Component {
     public function unassignVendor(int $stallId): void
     {
         $stall = Stall::where('market_id', $this->marketId)->findOrFail($stallId);
-        $stall->update(['vendor_id' => null, 'status' => 'available']);
+        $stall->update(['vendor_id' => null, 'status' => 'available', 'rent_start' => null, 'rent_expiry' => null]);
         $this->dispatch('toast', message: 'Vendor unassigned from stall ' . $stall->stall_number . '.', type: 'success');
         $this->clearCache();
     }
@@ -273,6 +305,8 @@ new class extends Component {
         $this->formMonthlyRate = '3500';
         $this->formStatus = 'available';
         $this->formVendorId = null;
+        $this->formRentStart = null;
+        $this->formRentExpiry = null;
         $this->resetValidation();
     }
 
@@ -379,7 +413,7 @@ new class extends Component {
 
         $this->validate([
             'inlineStallNumber' => [
-                'required', 'string', 'max:10',
+                'required', 'string', 'max:12',
                 Rule::unique('stalls', 'stall_number')->where('market_id', $this->marketId),
             ],
             'inlineSize' => ['required', 'string', 'max:10'],
@@ -588,7 +622,7 @@ new class extends Component {
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
                             <div class="flex flex-col gap-1.5">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Stall No.') }}</label>
-                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $sectionKey }}-01" />
+                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" maxlength="12" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $sectionKey }}-01" />
                                 @error('inlineStallNumber') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
                             <div class="flex flex-col gap-1.5">
@@ -627,7 +661,7 @@ new class extends Component {
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
                             <div class="flex flex-col gap-1.5">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Stall No.') }}</label>
-                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $addingStallSection }}-01" />
+                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" maxlength="12" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $addingStallSection }}-01" />
                                 @error('inlineStallNumber') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
                             <div class="flex flex-col gap-1.5">
@@ -827,9 +861,9 @@ new class extends Component {
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 flex-1">
-                    <flux:input wire:model="formStallNumber" :label="__('Stall No.')" type="text" required placeholder="A-01" />
-                    <flux:input wire:model="formSection" :label="__('Section')" type="text" required placeholder="A" />
-                    <flux:input wire:model="formSize" :label="__('Size')" type="text" required placeholder="3x3m" />
+                    <flux:input wire:model="formStallNumber" :label="__('Stall No.')" type="text" required maxlength="12" placeholder="A-01" />
+                    <flux:input wire:model="formSection" :label="__('Section')" type="text" required maxlength="5" placeholder="A" />
+                    <flux:input wire:model="formSize" :label="__('Size')" type="text" required maxlength="10" placeholder="3x3m" />
                     <flux:input wire:model="formMonthlyRate" :label="__('Rate (₱)')" type="number" required step="0.01" />
                 </div>
 
@@ -838,6 +872,13 @@ new class extends Component {
                     <flux:select.option value="occupied">{{ __('Occupied') }}</flux:select.option>
                     <flux:select.option value="maintenance">{{ __('Maintenance') }}</flux:select.option>
                 </flux:select>
+
+                @if($formVendorId)
+                <div class="grid grid-cols-2 gap-3">
+                    <flux:input wire:model="formRentStart" :label="__('Rent Start')" type="date" />
+                    <flux:input wire:model="formRentExpiry" :label="__('Rent Expiry')" type="date" />
+                </div>
+                @endif
 
                 {{-- Currently assigned preview --}}
                 <div class="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-3 text-sm">
@@ -920,6 +961,9 @@ new class extends Component {
                             <p class="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate">{{ $vendor->contact_name }}</p>
                             <p class="text-xs text-zinc-500 dark:text-zinc-400 truncate">{{ $vendor->business_name }} · {{ $vendor->product_type }}</p>
                         </div>
+                        @if($vendor->stalls_count > 0)
+                        <flux:badge color="zinc" size="sm" class="shrink-0">{{ trans_choice(':count stall|:count stalls', $vendor->stalls_count, ['count' => $vendor->stalls_count]) }}</flux:badge>
+                        @endif
                         <flux:badge :color="$vendor->permit_status->color()" size="sm" class="shrink-0">{{ $vendor->permit_status->label() }}</flux:badge>
                         @if($formVendorId == $vendor->id)
                         <svg class="h-4 w-4 text-orange-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>

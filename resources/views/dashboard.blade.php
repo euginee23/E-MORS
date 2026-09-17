@@ -41,7 +41,12 @@
 
     if ($user->isVendor()) {
         $myVendor = $user->vendor;
-        $myStall = $myVendor?->stall;
+        // Load the relation once so the rollup helpers below reuse it instead of re-querying.
+        $myVendor?->load(['stalls' => fn ($q) => $q->orderBy('section')->orderBy('stall_number')]);
+        $myStalls = $myVendor?->stalls ?? collect();
+        $myTotalRent = $myVendor?->totalMonthlyRent() ?? 0;
+        $myNearestExpiry = $myVendor?->soonestRentExpiry();
+        $myRentalStatus = $myVendor?->stallRentalStatus() ?? \App\Enums\RentalStatus::Unassigned;
         $lastPayment = $myVendor ? Collection::where('vendor_id', $myVendor->id)
             ->where('status', PaymentStatus::Paid)->latest('payment_date')->first() : null;
         $myCollections = $myVendor ? Collection::where('vendor_id', $myVendor->id)
@@ -131,19 +136,19 @@
             @endif
 
             @if($user->isVendor())
-            {{-- My Stall --}}
+            {{-- Stalls Rented --}}
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="flex items-center justify-between">
-                    <flux:text class="text-sm font-medium">{{ __('My Stall') }}</flux:text>
+                    <flux:text class="text-sm font-medium">{{ __('Stalls Rented') }}</flux:text>
                     <div class="flex size-10 items-center justify-center rounded-lg bg-purple-50 dark:bg-purple-900/20">
                         <flux:icon.building-storefront class="size-5 text-purple-600 dark:text-purple-400" />
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">{{ $myStall?->stall_number ?? __('Unassigned') }}</flux:heading>
-                    @if($myStall)
-                    <flux:text class="mt-1 text-xs text-zinc-500">Section {{ $myStall->section }}</flux:text>
-                    @endif
+                    <flux:heading size="xl" class="text-2xl font-bold">{{ $myStalls->count() }}</flux:heading>
+                    <flux:text class="mt-1 text-xs text-zinc-500">
+                        {{ $myStalls->isEmpty() ? __('No stall assigned yet') : $myStalls->pluck('stall_number')->join(', ') }}
+                    </flux:text>
                 </div>
             </div>
 
@@ -165,41 +170,75 @@
                 </div>
             </div>
 
-            {{-- Monthly Fee --}}
+            {{-- Total Monthly Rent --}}
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="flex items-center justify-between">
-                    <flux:text class="text-sm font-medium">{{ __('Monthly Fee') }}</flux:text>
+                    <flux:text class="text-sm font-medium">{{ __('Total Monthly Rent') }}</flux:text>
                     <div class="flex size-10 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/20">
                         <flux:icon.banknotes class="size-5 text-blue-600 dark:text-blue-400" />
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">₱ {{ number_format($myStall?->monthly_rate ?? 0, 0) }}</flux:heading>
+                    <flux:heading size="xl" class="text-2xl font-bold">₱ {{ number_format($myTotalRent, 0) }}</flux:heading>
                     <flux:text class="mt-1 text-xs text-zinc-500">Due: {{ now()->endOfMonth()->format('M j, Y') }}</flux:text>
                 </div>
             </div>
 
-            {{-- Permit --}}
+            {{-- Stall Status --}}
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="flex items-center justify-between">
-                    <flux:text class="text-sm font-medium">{{ __('Permit Status') }}</flux:text>
+                    <flux:text class="text-sm font-medium">{{ __('Stall Status') }}</flux:text>
                     <div class="flex size-10 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/20">
                         <flux:icon.document-check class="size-5 text-amber-600 dark:text-amber-400" />
                     </div>
                 </div>
                 <div class="mt-3">
-                    @if($myVendor)
-                    <flux:badge color="{{ $myVendor->permit_status->color() }}" size="sm">{{ $myVendor->permit_status->label() }}</flux:badge>
-                    @if($myVendor->permit_expiry)
-                    <flux:text class="mt-1 text-xs text-zinc-500">Expires: {{ $myVendor->permit_expiry->format('M j, Y') }}</flux:text>
-                    @endif
-                    @else
-                    <flux:badge color="zinc" size="sm">{{ __('N/A') }}</flux:badge>
+                    <flux:badge color="{{ $myRentalStatus->color() }}" size="sm">{{ $myRentalStatus->label() }}</flux:badge>
+                    @if($myNearestExpiry)
+                    <flux:text class="mt-1 text-xs text-zinc-500">Expires: {{ $myNearestExpiry->format('M j, Y') }}</flux:text>
                     @endif
                 </div>
             </div>
             @endif
         </div>
+
+        @if($user->isVendor() && $myStalls->isNotEmpty())
+        {{-- My Stalls — one card per rented space --}}
+        <div>
+            <flux:heading size="lg" class="mb-3">{{ __('My Stalls') }}</flux:heading>
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach($myStalls as $rentedStall)
+                <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <flux:heading size="lg" class="font-bold">{{ $rentedStall->stall_number }}</flux:heading>
+                            <flux:text class="text-xs text-zinc-500">Section {{ $rentedStall->section }}</flux:text>
+                        </div>
+                        <flux:badge :color="$rentedStall->rental_status->color()" size="sm">{{ $rentedStall->rental_status->label() }}</flux:badge>
+                    </div>
+                    <dl class="mt-4 space-y-2 text-sm">
+                        <div class="flex items-center justify-between">
+                            <dt class="text-zinc-500">{{ __('Monthly Rent') }}</dt>
+                            <dd class="font-semibold text-zinc-900 dark:text-zinc-100">₱ {{ number_format($rentedStall->monthly_rate, 2) }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <dt class="text-zinc-500">{{ __('Size') }}</dt>
+                            <dd class="font-medium text-zinc-700 dark:text-zinc-300">{{ $rentedStall->size }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <dt class="text-zinc-500">{{ __('Category') }}</dt>
+                            <dd class="font-medium text-zinc-700 dark:text-zinc-300">{{ $myVendor->product_type ?: '—' }}</dd>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <dt class="text-zinc-500">{{ __('Rent Expiry') }}</dt>
+                            <dd class="font-medium text-zinc-700 dark:text-zinc-300">{{ $rentedStall->rent_expiry?->format('M j, Y') ?? '—' }}</dd>
+                        </div>
+                    </dl>
+                </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
 
         {{-- Main Content Area --}}
         <div class="grid gap-4 lg:grid-cols-3">

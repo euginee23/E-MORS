@@ -702,4 +702,264 @@ class MarketRevisionsTest extends TestCase
         $this->assertSame(RentalStatus::Active, $free->rental_status);
         $this->assertSame('active', $applicant->fresh()->permit_status->value);
     }
+
+    // ─── Announcements: long text must wrap, not overflow ───
+
+    public function test_long_announcement_text_is_set_up_to_wrap(): void
+    {
+        $admin = $this->admin();
+        $runOn = str_repeat('asjghbfjasxasnnnnn', 40); // one unbroken 720-char word
+
+        \App\Models\Announcement::create([
+            'market_id' => $this->market->id,
+            'author_id' => $admin->id,
+            'title' => $runOn,
+            'body' => $runOn,
+            'category' => 'general',
+            'published_at' => now(),
+        ]);
+
+        $html = $this->actingAs($this->vendor->user)
+            ->get(route('vendor.announcements'))
+            ->assertOk()
+            ->getContent();
+
+        // The card must be able to shrink, and the long word must be breakable.
+        $this->assertStringContainsString('min-w-0', $html, 'flex child cannot shrink without min-w-0');
+        $this->assertStringContainsString('wrap-break-word', $html, 'long words would overflow the card');
+        $this->assertStringContainsString('whitespace-pre-line', $html, 'admin line breaks should survive');
+    }
+
+    public function test_announcement_wrapping_classes_are_compiled_into_the_stylesheet(): void
+    {
+        $css = '';
+        foreach (glob(public_path('build/assets/*.css')) ?: [] as $file) {
+            $css .= file_get_contents($file);
+        }
+
+        if ($css === '') {
+            $this->markTestSkipped('assets not built');
+        }
+
+        // A class that never reaches the stylesheet fixes nothing on screen.
+        $this->assertStringContainsString('overflow-wrap:break-word', $css);
+        $this->assertStringContainsString('white-space:pre-line', $css);
+    }
+
+    // ─── Collector: receipt, email, and the vendor picker ───
+
+    private function collector(): User
+    {
+        return User::factory()->create([
+            'role' => UserRole::Collector,
+            'market_id' => $this->market->id,
+            'status' => AdminStatus::Verified,
+        ]);
+    }
+
+    public function test_recording_a_payment_emails_the_vendor_a_receipt(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        $target = $this->vendor->stalls->firstWhere('stall_number', 'A-02');
+
+        \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect')
+            ->set('formVendorId', $this->vendor->id)
+            ->set('formStallId', $target->id)
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('lastEmailedTo', $this->vendor->user->email);
+
+        \Illuminate\Support\Facades\Mail::assertSent(
+            \App\Mail\PaymentReceipt::class,
+            fn ($mail) => $mail->hasTo($this->vendor->user->email)
+                && $mail->collection->receipt_number !== null
+        );
+    }
+
+    public function test_a_vendor_without_an_email_still_gets_the_payment_recorded(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        $walkIn = Vendor::create([
+            'market_id' => $this->market->id,
+            'business_name' => 'Walk In Biz',
+            'contact_name' => 'Walk In Vendor',
+            'permit_status' => 'active',
+        ]);
+        $stall = $this->stall(['vendor_id' => $walkIn->id, 'status' => 'occupied']);
+
+        \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect')
+            ->set('formVendorId', $walkIn->id)
+            ->set('formStallId', $stall->id)
+            ->set('formAmount', '750')
+            ->call('save')
+            ->assertHasNoErrors()
+            ->assertSet('lastEmailedTo', null);
+
+        // The money is what matters; a missing address must not block the collection.
+        $this->assertDatabaseHas('collections', ['vendor_id' => $walkIn->id, 'amount' => 750]);
+        \Illuminate\Support\Facades\Mail::assertNothingSent();
+    }
+
+    public function test_the_collector_sees_a_printable_receipt_after_collecting(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        $target = $this->vendor->stalls->firstWhere('stall_number', 'A-01');
+
+        \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect')
+            ->set('formVendorId', $this->vendor->id)
+            ->set('formStallId', $target->id)
+            ->call('save')
+            ->assertSee('Payment Recorded')
+            ->assertSee('Print Receipt')
+            ->assertSee('Maria Santos')
+            ->assertSee('A-01')
+            ->assertSeeHtml('window.print()');
+    }
+
+    public function test_admin_can_view_a_receipt_but_cannot_print_or_email_it(): void
+    {
+        $collection = Collection::create([
+            'market_id' => $this->market->id,
+            'vendor_id' => $this->vendor->id,
+            'stall_id' => $this->vendor->stalls->first()->id,
+            'receipt_number' => 'RCP-VIEW-0001',
+            'amount' => 3000,
+            'payment_date' => now(),
+            'payment_method' => 'cash',
+            'status' => PaymentStatus::Paid,
+        ]);
+
+        \Livewire\Livewire::actingAs($this->admin())
+            ->test('pages::collections.index')
+            ->call('viewReceipt', $collection->id)
+            ->assertSee('RCP-VIEW-0001')          // can view
+            ->assertDontSee('Print Receipt')       // cannot print
+            ->assertDontSeeHtml('window.print()')
+            ->assertDontSee('Resend Email');
+    }
+
+    public function test_a_vendor_collected_today_drops_out_of_the_picker(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        $other = Vendor::create([
+            'market_id' => $this->market->id,
+            'business_name' => 'Second Biz',
+            'contact_name' => 'Juan Cruz',
+            'permit_status' => 'active',
+        ]);
+        $this->stall(['vendor_id' => $other->id, 'status' => 'occupied']);
+
+        $component = \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect');
+
+        $component->assertSee('Maria Santos')->assertSee('Juan Cruz');
+
+        // Collect from Maria, then confirm she leaves the list for the next collector.
+        $component->set('formVendorId', $this->vendor->id)
+            ->set('formStallId', $this->vendor->stalls->first()->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $fresh = \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect');
+
+        $fresh->assertDontSee('Maria Santos')
+            ->assertSee('Juan Cruz')
+            ->assertSee('already collected today');
+
+        // The toggle brings her back, flagged as paid.
+        $fresh->set('showCollectedToday', true)
+            ->assertSee('Maria Santos')
+            ->assertSee('PAID');
+    }
+
+    public function test_hiding_collected_vendors_again_clears_a_stale_selection(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        Collection::create([
+            'market_id' => $this->market->id,
+            'vendor_id' => $this->vendor->id,
+            'stall_id' => $this->vendor->stalls->first()->id,
+            'receipt_number' => 'RCP-STALE-0001',
+            'amount' => 3000,
+            'payment_date' => now(),
+            'payment_method' => 'cash',
+            'status' => PaymentStatus::Paid,
+        ]);
+
+        \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect')
+            ->set('showCollectedToday', true)
+            ->set('formVendorId', $this->vendor->id)
+            ->assertSet('formVendorId', $this->vendor->id)
+            ->set('showCollectedToday', false)
+            // She is hidden again, so she must not stay silently selected.
+            ->assertSet('formVendorId', null);
+    }
+
+    public function test_yesterdays_collection_does_not_hide_a_vendor_today(): void
+    {
+        Collection::create([
+            'market_id' => $this->market->id,
+            'vendor_id' => $this->vendor->id,
+            'stall_id' => $this->vendor->stalls->first()->id,
+            'receipt_number' => 'RCP-YEST-0001',
+            'amount' => 3000,
+            'payment_date' => now()->subDay(),
+            'payment_method' => 'cash',
+            'status' => PaymentStatus::Paid,
+        ]);
+
+        // "ma activate rag balik nig kaugma" — the list resets the next day.
+        \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect')
+            ->assertSee('Maria Santos');
+    }
+
+    public function test_an_unpaid_collection_does_not_hide_a_vendor(): void
+    {
+        Collection::create([
+            'market_id' => $this->market->id,
+            'vendor_id' => $this->vendor->id,
+            'stall_id' => $this->vendor->stalls->first()->id,
+            'receipt_number' => 'RCP-PEND-0001',
+            'amount' => 3000,
+            'payment_date' => now(),
+            'payment_method' => 'cash',
+            'status' => PaymentStatus::Pending,
+        ]);
+
+        // Only a paid collection counts as collected.
+        \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect')
+            ->assertSee('Maria Santos');
+    }
+
+    public function test_the_collector_can_resend_the_receipt_email(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        $target = $this->vendor->stalls->first();
+
+        $component = \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect')
+            ->set('formVendorId', $this->vendor->id)
+            ->set('formStallId', $target->id)
+            ->call('save');
+
+        \Illuminate\Support\Facades\Mail::assertSentCount(1);
+
+        $component->call('resendReceiptEmail')
+            ->assertSet('lastEmailedTo', $this->vendor->user->email);
+
+        \Illuminate\Support\Facades\Mail::assertSentCount(2);
+    }
 }

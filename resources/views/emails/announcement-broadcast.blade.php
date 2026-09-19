@@ -13,8 +13,8 @@
         .head p { margin: 8px 0 0; font-size: 13px; opacity: 0.9; }
         .body { padding: 24px; }
         .category { display: inline-block; margin-bottom: 12px; background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 4px 10px; text-transform: uppercase; letter-spacing: .4px; }
-        .title { margin: 0 0 10px; font-size: 20px; line-height: 1.25; }
-        .content { margin: 0; font-size: 14px; line-height: 1.7; color: #3f3f46; white-space: pre-line; }
+        .title { margin: 0 0 10px; font-size: 20px; line-height: 1.25; overflow-wrap: break-word; word-break: break-word; }
+        .content { margin: 0; font-size: 14px; line-height: 1.7; color: #3f3f46; white-space: pre-line; overflow-wrap: break-word; word-break: break-word; }
         .foot { border-top: 1px solid #f4f4f5; margin-top: 22px; padding-top: 14px; font-size: 12px; color: #71717a; }
     </style>
 </head>

@@ -236,8 +236,8 @@ new class extends Component {
                     <tbody class="divide-y divide-orange-100 dark:divide-zinc-700">
                         @forelse($this->announcements as $announcement)
                         <tr class="hover:bg-orange-50/50 dark:hover:bg-zinc-800/50" wire:key="ann-{{ $announcement->id }}">
-                            <td class="px-6 py-3">
-                                <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ Str::limit($announcement->title, 50) }}</span>
+                            <td class="max-w-xs px-6 py-3">
+                                <span class="block wrap-break-word font-medium text-zinc-900 dark:text-zinc-100">{{ Str::limit($announcement->title, 50) }}</span>
                             </td>
                             <td class="px-6 py-3">
                                 <flux:badge :color="$announcement->category->color()" size="sm">{{ $announcement->category->label() }}</flux:badge>

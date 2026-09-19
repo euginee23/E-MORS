@@ -74,15 +74,17 @@ new class extends Component {
                 @if($isUnread) wire:click="markAsRead({{ $announcement->id }})" class="cursor-pointer" @endif
             >
                 <div class="p-6">
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div class="flex items-start gap-3">
+                    <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="flex min-w-0 items-start gap-3">
                             @if($isUnread)
                             <div class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-orange-500 animate-pulse"></div>
                             @else
                             <div class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-zinc-300 dark:bg-zinc-600"></div>
                             @endif
-                            <div>
-                                <h3 class="font-semibold {{ $isUnread ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300' }}">
+                            {{-- min-w-0 lets this flex child shrink; without it a long unbroken
+                                 word forces the card wider than the page instead of wrapping. --}}
+                            <div class="min-w-0">
+                                <h3 class="font-semibold wrap-break-word {{ $isUnread ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300' }}">
                                     {{ $announcement->title }}
                                 </h3>
                                 <div class="mt-1 flex flex-wrap items-center gap-2">
@@ -94,7 +96,9 @@ new class extends Component {
                             </div>
                         </div>
                     </div>
-                    <div class="mt-3 ml-6 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                    {{-- whitespace-pre-line keeps the line breaks the admin typed;
+                         wrap-break-word stops one long word from blowing out the card. --}}
+                    <div class="mt-3 ml-6 text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed whitespace-pre-line wrap-break-word">
                         {{ $announcement->body }}
                     </div>
                 </div>

@@ -2,8 +2,10 @@
 
 use App\Enums\PaymentStatus;
 use App\Models\Collection;
+use App\Support\DateRange;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Validate;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -13,6 +15,12 @@ new class extends Component {
     public string $search = '';
     public string $statusFilter = 'all';
     public string $periodFilter = 'month';
+
+    #[Validate('nullable|date')]
+    public ?string $dateFrom = null;
+
+    #[Validate('nullable|date')]
+    public ?string $dateTo = null;
 
     public function updatedSearch(): void
     {
@@ -26,13 +34,68 @@ new class extends Component {
 
     public function updatedPeriodFilter(): void
     {
+        $this->clearRangeCache();
+    }
+
+    public function updatedDateFrom(): void
+    {
+        $this->validateOnly('dateFrom');
+        $this->clearRangeCache();
+    }
+
+    public function updatedDateTo(): void
+    {
+        $this->validateOnly('dateTo');
+        $this->clearRangeCache();
+    }
+
+    public function clearCustomRange(): void
+    {
+        $this->dateFrom = null;
+        $this->dateTo = null;
+        $this->resetValidation();
+        $this->clearRangeCache();
+    }
+
+    private function clearRangeCache(): void
+    {
         $this->resetPage();
+
+        unset(
+            $this->range,
+            $this->collections,
+            $this->rangeTotal,
+            $this->rangeReceipts,
+            $this->avgDaily,
+        );
     }
 
     #[Computed]
     public function marketId(): ?int
     {
         return Auth::user()->market_id;
+    }
+
+    /** Null while "All Time" is selected — the queries then stay unbounded. */
+    #[Computed]
+    public function range(): ?DateRange
+    {
+        return DateRange::resolve($this->periodFilter, $this->dateFrom, $this->dateTo);
+    }
+
+    #[Computed]
+    public function rangeLabel(): string
+    {
+        return $this->range?->label ?? __('All Time');
+    }
+
+    /** Every summary card below is this query plus one aggregate. */
+    private function rangeQuery()
+    {
+        return Collection::where('market_id', $this->marketId)
+            ->where('collector_id', Auth::id())
+            ->where('status', PaymentStatus::Paid)
+            ->when($this->range, fn ($q) => $this->range->applyTo($q));
     }
 
     #[Computed]
@@ -46,13 +109,7 @@ new class extends Component {
                    ->orWhereHas('vendor', fn ($q3) => $q3->where('contact_name', 'like', '%' . $this->search . '%'))
             ))
             ->when($this->statusFilter !== 'all', fn ($q) => $q->where('status', $this->statusFilter))
-            ->when($this->periodFilter !== 'all', fn ($q) => match ($this->periodFilter) {
-                'today' => $q->whereDate('payment_date', today()),
-                'week' => $q->whereBetween('payment_date', [now()->startOfWeek(), now()->endOfWeek()]),
-                'month' => $q->whereMonth('payment_date', now()->month)->whereYear('payment_date', now()->year),
-                'last_month' => $q->whereMonth('payment_date', now()->subMonth()->month)->whereYear('payment_date', now()->subMonth()->year),
-                default => $q,
-            })
+            ->when($this->range, fn ($q) => $this->range->applyTo($q))
             ->orderByDesc('payment_date')
             ->orderByDesc('created_at')
             ->paginate(15);
@@ -70,49 +127,25 @@ new class extends Component {
     }
 
     #[Computed]
-    public function monthTotal(): string
+    public function rangeTotal(): string
     {
-        $total = Collection::where('market_id', $this->marketId)
-            ->where('collector_id', Auth::id())
-            ->where('status', PaymentStatus::Paid)
-            ->whereMonth('payment_date', now()->month)
-            ->whereYear('payment_date', now()->year)
-            ->sum('amount');
-        return number_format($total, 0);
+        return number_format((float) $this->rangeQuery()->sum('amount'), 0);
     }
 
     #[Computed]
-    public function monthReceipts(): int
+    public function rangeReceipts(): int
     {
-        return Collection::where('market_id', $this->marketId)
-            ->where('collector_id', Auth::id())
-            ->where('status', PaymentStatus::Paid)
-            ->whereMonth('payment_date', now()->month)
-            ->whereYear('payment_date', now()->year)
-            ->count();
+        return $this->rangeQuery()->count();
     }
 
     #[Computed]
     public function avgDaily(): string
     {
-        $days = Collection::where('market_id', $this->marketId)
-            ->where('collector_id', Auth::id())
-            ->where('status', PaymentStatus::Paid)
-            ->whereMonth('payment_date', now()->month)
-            ->whereYear('payment_date', now()->year)
-            ->distinct()
-            ->count(\DB::raw('DATE(payment_date)'));
+        $days = $this->rangeQuery()->distinct()->count(\DB::raw('DATE(payment_date)'));
 
         if ($days === 0) return '0';
 
-        $monthTotal = Collection::where('market_id', $this->marketId)
-            ->where('collector_id', Auth::id())
-            ->where('status', PaymentStatus::Paid)
-            ->whereMonth('payment_date', now()->month)
-            ->whereYear('payment_date', now()->year)
-            ->sum('amount');
-
-        return number_format($monthTotal / $days, 0);
+        return number_format((float) $this->rangeQuery()->sum('amount') / $days, 0);
     }
 
     public function render()
@@ -150,14 +183,14 @@ new class extends Component {
 
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="flex items-center justify-between">
-                    <flux:text class="text-sm font-medium">{{ __('This Month') }}</flux:text>
+                    <flux:text class="text-sm font-medium">{{ __('Total Collected') }}</flux:text>
                     <div class="flex size-10 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/20">
                         <flux:icon.calendar class="size-5 text-blue-600 dark:text-blue-400" />
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">₱ {{ $this->monthTotal }}</flux:heading>
-                    <flux:text class="mt-1 text-xs text-zinc-500">{{ now()->startOfMonth()->format('M j') }} – {{ now()->format('M j') }}</flux:text>
+                    <flux:heading size="xl" class="text-2xl font-bold">₱ {{ $this->rangeTotal }}</flux:heading>
+                    <flux:text class="mt-1 text-xs text-zinc-500">{{ $this->rangeLabel }}</flux:text>
                 </div>
             </div>
 
@@ -169,8 +202,8 @@ new class extends Component {
                     </div>
                 </div>
                 <div class="mt-3">
-                    <flux:heading size="xl" class="text-2xl font-bold">{{ $this->monthReceipts }}</flux:heading>
-                    <flux:text class="mt-1 text-xs text-zinc-500">this month</flux:text>
+                    <flux:heading size="xl" class="text-2xl font-bold">{{ $this->rangeReceipts }}</flux:heading>
+                    <flux:text class="mt-1 text-xs text-zinc-500">{{ $this->rangeLabel }}</flux:text>
                 </div>
             </div>
 
@@ -205,8 +238,25 @@ new class extends Component {
                 <flux:select.option value="week">{{ __('This Week') }}</flux:select.option>
                 <flux:select.option value="month">{{ __('This Month') }}</flux:select.option>
                 <flux:select.option value="last_month">{{ __('Last Month') }}</flux:select.option>
+                <flux:select.option value="custom">{{ __('Custom range') }}</flux:select.option>
             </flux:select>
         </div>
+
+        {{-- Custom Date Range --}}
+        @if($periodFilter === 'custom')
+        <div class="flex flex-col gap-3 rounded-2xl border border-orange-100 bg-white/80 p-4 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80 sm:flex-row sm:items-end">
+            <div class="sm:w-48">
+                <flux:input wire:model.live="dateFrom" type="date" :label="__('From Date')" max="{{ $dateTo }}" />
+            </div>
+            <div class="sm:w-48">
+                <flux:input wire:model.live="dateTo" type="date" :label="__('To Date')" min="{{ $dateFrom }}" />
+            </div>
+            <flux:button variant="ghost" icon="x-mark" wire:click="clearCustomRange">
+                {{ __('Clear') }}
+            </flux:button>
+            <flux:text class="text-sm text-zinc-500 sm:ml-auto sm:pb-2">{{ __('Showing') }}: <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $this->rangeLabel }}</span></flux:text>
+        </div>
+        @endif
 
         {{-- Collections Table --}}
         <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">

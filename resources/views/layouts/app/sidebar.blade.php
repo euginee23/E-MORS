@@ -26,6 +26,9 @@
                         <flux:badge color="yellow" size="sm" class="ml-auto">{{ $pendingAdmins }}</flux:badge>
                         @endif
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="building-library" :href="route('super-admin.markets.index')" :current="request()->routeIs('super-admin.markets.*')" wire:navigate>
+                        {{ __('Markets') }}
+                    </flux:sidebar.item>
                     <flux:sidebar.item icon="clipboard-document-list" :href="route('super-admin.audit-log.index')" :current="request()->routeIs('super-admin.audit-log.*')" wire:navigate>
                         {{ __('Audit Log') }}
                     </flux:sidebar.item>

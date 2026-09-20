@@ -28,6 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Super Admin — admin-account governance only, not scoped to a market
     Route::middleware('role:super_admin')->prefix('super-admin')->name('super-admin.')->group(function () {
         Route::livewire('admins', 'pages::super-admin.admins')->name('admins.index');
+        Route::livewire('markets', 'pages::super-admin.markets')->name('markets.index');
         Route::livewire('audit-log', 'pages::super-admin.audit-log')->name('audit-log.index');
 
         Route::get('admins/{admin}/photo/{type}', AdminPhotoController::class)->name('admins.photo');

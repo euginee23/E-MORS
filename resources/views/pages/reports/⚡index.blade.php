@@ -3,9 +3,11 @@
 use App\Actions\Reports\ExportCollectionReport;
 use App\Enums\PaymentStatus;
 use App\Models\Collection;
+use App\Support\DateRange;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Validate;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -14,8 +16,34 @@ new class extends Component {
 
     public string $period = 'month';
 
+    #[Validate('nullable|date')]
+    public ?string $dateFrom = null;
+
+    #[Validate('nullable|date')]
+    public ?string $dateTo = null;
+
     public function updatedPeriod(): void
     {
+        $this->clearCache();
+    }
+
+    public function updatedDateFrom(): void
+    {
+        $this->validateOnly('dateFrom');
+        $this->clearCache();
+    }
+
+    public function updatedDateTo(): void
+    {
+        $this->validateOnly('dateTo');
+        $this->clearCache();
+    }
+
+    public function clearCustomRange(): void
+    {
+        $this->dateFrom = null;
+        $this->dateTo = null;
+        $this->resetValidation();
         $this->clearCache();
     }
 
@@ -25,16 +53,21 @@ new class extends Component {
         return Auth::user()->market_id;
     }
 
+    /**
+     * A report always covers *some* window — an unresolvable one (a blank custom
+     * range) falls back to the month, matching the old `default` arm.
+     */
+    private function range(): DateRange
+    {
+        return DateRange::resolve($this->period, $this->dateFrom, $this->dateTo)
+            ?? DateRange::resolve('month');
+    }
+
     private function periodRange(): array
     {
-        return match ($this->period) {
-            'today' => [Carbon::today(), Carbon::today()->endOfDay()],
-            'week' => [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()],
-            'month' => [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()],
-            'quarter' => [Carbon::now()->firstOfQuarter(), Carbon::now()->lastOfQuarter()->endOfDay()],
-            'year' => [Carbon::now()->startOfYear(), Carbon::now()->endOfYear()],
-            default => [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()],
-        };
+        $range = $this->range();
+
+        return [$range->start, $range->end];
     }
 
     #[Computed]
@@ -129,14 +162,7 @@ new class extends Component {
 
     public function periodLabel(): string
     {
-        return match ($this->period) {
-            'today' => 'Today',
-            'week' => 'This Week',
-            'month' => 'This Month',
-            'quarter' => 'This Quarter',
-            'year' => 'This Year',
-            default => 'Report',
-        };
+        return $this->range()->label;
     }
 
     public function export()
@@ -162,7 +188,11 @@ new class extends Component {
             throw $e;
         }
 
-        $filename = 'EMORS_Report_' . str_replace(' ', '_', $this->periodLabel()) . '_' . now()->format('Ymd') . '.xlsx';
+        // A custom range label carries commas and an en dash, so strip it down to
+        // characters that are safe in a filename rather than only spaces.
+        $slug = trim((string) preg_replace('/[^A-Za-z0-9]+/', '_', $this->periodLabel()), '_');
+
+        $filename = 'EMORS_Report_' . $slug . '_' . now()->format('Ymd') . '.xlsx';
 
         return response()->streamDownload(function () use ($tempPath) {
             try {
@@ -210,12 +240,29 @@ new class extends Component {
                     <flux:select.option value="month">{{ __('This Month') }}</flux:select.option>
                     <flux:select.option value="quarter">{{ __('This Quarter') }}</flux:select.option>
                     <flux:select.option value="year">{{ __('This Year') }}</flux:select.option>
+                    <flux:select.option value="custom">{{ __('Custom range') }}</flux:select.option>
                 </flux:select>
                 <flux:button icon="arrow-down-tray" variant="outline" wire:click="export">
                     {{ __('Export') }}
                 </flux:button>
             </div>
         </div>
+
+        {{-- Custom Date Range --}}
+        @if($period === 'custom')
+        <div class="flex flex-col gap-3 rounded-2xl border border-orange-100 bg-white/80 p-4 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80 sm:flex-row sm:items-end">
+            <div class="sm:w-48">
+                <flux:input wire:model.live="dateFrom" type="date" :label="__('From Date')" max="{{ $dateTo }}" />
+            </div>
+            <div class="sm:w-48">
+                <flux:input wire:model.live="dateTo" type="date" :label="__('To Date')" min="{{ $dateFrom }}" />
+            </div>
+            <flux:button variant="ghost" icon="x-mark" wire:click="clearCustomRange">
+                {{ __('Clear') }}
+            </flux:button>
+            <flux:text class="text-sm text-zinc-500 sm:ml-auto sm:pb-2">{{ __('Reporting on') }}: <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $this->periodLabel() }}</span></flux:text>
+        </div>
+        @endif
 
         {{-- Revenue Summary Cards --}}
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

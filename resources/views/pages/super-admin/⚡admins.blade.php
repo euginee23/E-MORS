@@ -68,7 +68,7 @@ new class extends Component {
     public function admins()
     {
         return User::where('role', UserRole::Admin)
-            ->with('market')
+            ->with(['market' => fn ($q) => $q->withCount(['stalls', 'vendors'])])
             ->when($this->search, fn ($q) => $q->where(fn ($q2) =>
                 $q2->where('name', 'like', '%' . $this->search . '%')
                    ->orWhere('email', 'like', '%' . $this->search . '%')
@@ -113,7 +113,9 @@ new class extends Component {
     public function viewingAdmin(): ?User
     {
         return $this->viewingAdminId
-            ? User::where('role', UserRole::Admin)->with('market')->find($this->viewingAdminId)
+            ? User::where('role', UserRole::Admin)
+                ->with(['market' => fn ($q) => $q->withCount(['stalls', 'vendors'])])
+                ->find($this->viewingAdminId)
             : null;
     }
 
@@ -468,6 +470,8 @@ new class extends Component {
                         <tr class="border-b border-orange-100 text-left dark:border-zinc-700">
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Admin') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Municipality') }}</th>
+                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stalls') }}</th>
+                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Vendors') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Status') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Active') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Registered') }}</th>
@@ -487,6 +491,8 @@ new class extends Component {
                                 </div>
                             </td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $admin->market?->name ?? '—' }}</td>
+                            <td class="px-6 py-3 font-semibold text-zinc-900 dark:text-zinc-100">{{ $admin->market ? number_format($admin->market->stalls_count) : '—' }}</td>
+                            <td class="px-6 py-3 font-semibold text-zinc-900 dark:text-zinc-100">{{ $admin->market ? number_format($admin->market->vendors_count) : '—' }}</td>
                             <td class="px-6 py-3">
                                 <flux:badge :color="$admin->status->color()" size="sm">{{ $admin->status->label() }}</flux:badge>
                             </td>
@@ -524,7 +530,7 @@ new class extends Component {
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-12 text-center">
+                            <td colspan="8" class="px-6 py-12 text-center">
                                 <div class="flex flex-col items-center gap-3 text-zinc-400">
                                     <svg class="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -579,6 +585,16 @@ new class extends Component {
                         <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">{{ __('Registered') }}</p>
                         <p class="mt-0.5 text-sm font-medium text-zinc-900 dark:text-zinc-100">{{ $this->viewingAdmin->created_at->format('M j, Y g:i A') }}</p>
                     </div>
+                    @if($this->viewingAdmin->market)
+                    <div class="rounded-xl border border-zinc-100 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">{{ __('Stalls') }}</p>
+                        <p class="mt-0.5 text-sm font-medium text-zinc-900 dark:text-zinc-100">{{ number_format($this->viewingAdmin->market->stalls_count) }}</p>
+                    </div>
+                    <div class="rounded-xl border border-zinc-100 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">{{ __('Vendors') }}</p>
+                        <p class="mt-0.5 text-sm font-medium text-zinc-900 dark:text-zinc-100">{{ number_format($this->viewingAdmin->market->vendors_count) }}</p>
+                    </div>
+                    @endif
                 </div>
 
                 {{-- Identity photos --}}

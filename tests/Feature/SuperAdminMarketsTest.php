@@ -109,3 +109,21 @@ test('only the super admin can reach the markets page', function () {
     auth()->logout();
     $this->get(route('super-admin.markets.index'))->assertRedirect(route('login'));
 });
+
+test('the admin accounts list shows each admin market stall and vendor counts', function () {
+    $tukuran = seedMarketWithCounts('Tukuran Market', stalls: 50, vendors: 47);
+
+    $admin = User::factory()->create([
+        'role' => UserRole::Admin,
+        'market_id' => $tukuran->id,
+        'name' => 'Juan Cruz',
+    ]);
+
+    $superAdmin = User::factory()->create(['role' => UserRole::SuperAdmin, 'market_id' => null]);
+
+    Livewire::actingAs($superAdmin)
+        ->test('pages::super-admin.admins')
+        ->assertSeeInOrder(['Juan Cruz', 'Tukuran Market', '50', '47'])
+        ->call('openViewModal', $admin->id)
+        ->assertSeeInOrder(['Stalls', '50', 'Vendors', '47']);
+});

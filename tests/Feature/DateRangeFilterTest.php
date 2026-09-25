@@ -194,3 +194,29 @@ test('a custom range report exports an xlsx', function () {
         ->call('export')
         ->assertFileDownloaded();
 });
+
+test('reports show the trend, section, top vendor, and overdue panels', function () {
+    ($this->record)('RCP-NOW', now()->toDateString(), 1750);
+
+    Collection::create([
+        'market_id' => $this->market->id,
+        'vendor_id' => $this->vendor->id,
+        'stall_id' => $this->stall->id,
+        'collector_id' => $this->collector->id,
+        'receipt_number' => 'RCP-LATE',
+        'amount' => 900,
+        'payment_date' => now()->subDays(5)->toDateString(),
+        'payment_method' => 'cash',
+        'status' => PaymentStatus::Overdue,
+    ]);
+
+    Livewire::actingAs($this->admin)
+        ->test('pages::reports.index')
+        ->assertSeeInOrder([
+            'Monthly Revenue Trend',
+            'Collection by Section', 'Section A', '100%',
+            'Top Performing Vendors', 'Maria Santos', 'A-01', '₱ 1,750',
+            'Overdue Payments', 'Maria Santos', '₱ 900',
+            'Collection Ledger', 'RCP-NOW',
+        ]);
+});

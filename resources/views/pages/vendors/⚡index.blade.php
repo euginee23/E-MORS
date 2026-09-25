@@ -421,6 +421,7 @@ new class extends Component {
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stalls') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stall Status') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stall Expiry') }}</th>
+                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Permit Expiry') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Actions') }}</th>
                         </tr>
                     </thead>
@@ -449,6 +450,7 @@ new class extends Component {
                                 <flux:badge :color="$rentalStatus->color()" size="sm">{{ $rentalStatus->label() }}</flux:badge>
                             </td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $rentExpiry?->format('M j, Y') ?? '—' }}</td>
+                            <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $vendor->permit_expiry?->format('M j, Y') ?? '—' }}</td>
                             <td class="px-6 py-3">
                                 <flux:dropdown>
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
@@ -474,7 +476,7 @@ new class extends Component {
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-zinc-500">
+                            <td colspan="7" class="px-6 py-8 text-center text-zinc-500">
                                 {{ __('No vendors found.') }}
                             </td>
                         </tr>
@@ -510,7 +512,7 @@ new class extends Component {
                         <flux:select.option value="expired">{{ __('Expired') }}</flux:select.option>
                     </flux:select>
                 </div>
-                <flux:input wire:model="formPermitExpiry" :label="__('Permit Expiry Date')" type="date" />
+                <flux:input wire:model="formPermitExpiry" :label="__('Permit Expiry Date')" type="date" :description:trailing="__('This is the business permit. Each stall\'s expiry is set on the Stalls page.')" />
 
                 <div class="flex justify-end gap-3 pt-2">
                     <flux:button variant="ghost" wire:click="$set('showModal', false)">{{ __('Cancel') }}</flux:button>
@@ -593,10 +595,11 @@ new class extends Component {
                     <dt class="text-xs text-zinc-500">{{ __('Permit Status') }}</dt>
                     <dd class="mt-0.5">
                         <flux:badge :color="$vendorProfile->permit_status->color()" size="sm">{{ $vendorProfile->permit_status->label() }}</flux:badge>
-                        @if($vendorProfile->permit_expiry)
-                        <span class="ml-1 text-xs text-zinc-500">{{ __('until') }} {{ $vendorProfile->permit_expiry->format('M j, Y') }}</span>
-                        @endif
                     </dd>
+                </div>
+                <div>
+                    <dt class="text-xs text-zinc-500">{{ __('Permit Expiry') }}</dt>
+                    <dd class="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">{{ $vendorProfile->permit_expiry?->format('M j, Y') ?? '—' }}</dd>
                 </div>
             </dl>
 
@@ -618,7 +621,7 @@ new class extends Component {
                                 <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Size') }}</th>
                                 <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Monthly Rent') }}</th>
                                 <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Status') }}</th>
-                                <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Expiry') }}</th>
+                                <th class="px-4 py-2 font-medium text-zinc-500">{{ __('Stall Expiry') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-orange-100 dark:divide-zinc-700">

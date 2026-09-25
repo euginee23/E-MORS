@@ -161,6 +161,25 @@ new class extends Component {
                 </div>
             </div>
 
+            <div class="space-y-4">
+            {{-- Business Permit --}}
+            <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
+                <div class="flex items-center justify-between border-b border-orange-100 px-6 py-4 dark:border-zinc-700">
+                    <flux:heading size="lg">{{ __('Business Permit') }}</flux:heading>
+                    <flux:badge :color="$this->vendor->permit_status->color()" size="sm">{{ $this->vendor->permit_status->label() }}</flux:badge>
+                </div>
+                <dl class="grid grid-cols-2 gap-4 p-6">
+                    <div>
+                        <dt class="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{{ __('Permit Number') }}</dt>
+                        <dd class="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ $this->vendor->permit_number ?: '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{{ __('Permit Expiry') }}</dt>
+                        <dd class="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ $this->vendor->permit_expiry?->format('M j, Y') ?? '—' }}</dd>
+                    </div>
+                </dl>
+            </div>
+
             {{-- Market Admin Info --}}
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
                 <div class="border-b border-orange-100 px-6 py-4 dark:border-zinc-700">
@@ -193,6 +212,7 @@ new class extends Component {
                     </div>
                     @endif
                 </div>
+            </div>
             </div>
         </div>
         @else

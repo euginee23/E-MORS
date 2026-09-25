@@ -92,10 +92,10 @@ class MarketRevisionsTest extends TestCase
             ->assertOk()
             ->assertSee('Stall Status')
             ->assertSee('Stall Expiry')
-            // Permit columns are gone from the table; the permit fields survive
-            // only inside the edit modal, so assert on the column header markup.
+            // Permit status stays out of the table, but permit expiry is shown so an
+            // edit from the modal is visible. Assert on the column header markup.
             ->assertDontSee('>Permit Status</th>', false)
-            ->assertDontSee('>Permit Expiry</th>', false)
+            ->assertSee('>Permit Expiry</th>', false)
             // Worst-of rollup across the three stalls.
             ->assertSee('Expired')
             ->assertSee('A-01, A-02, A-03');

@@ -6,6 +6,7 @@ use App\Enums\PaymentStatus;
 use App\Models\Collection;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -119,9 +120,9 @@ class ExportCollectionReport
     {
         $sheet->setTitle('Collections');
 
-        $headers = ['#', 'Receipt No.', 'Date', 'Vendor', 'Stall', 'Section', 'Amount', 'Method', 'Collector', 'Status'];
+        $headers = ['#', 'Receipt No.', 'Date', 'Vendor', 'Stall', 'Section', 'Amount', 'Method', 'Reference No.', 'Collector', 'Status'];
         $sheet->fromArray($headers, null, 'A1');
-        $this->styleHeaderRow($sheet, 'A1:J1');
+        $this->styleHeaderRow($sheet, 'A1:K1');
 
         $row = 2;
         $index = 1;
@@ -140,9 +141,16 @@ class ExportCollectionReport
                         $collection->stall?->section ?? '',
                         (float) $collection->amount,
                         ucfirst(str_replace('_', ' ', $collection->payment_method)),
+                        null,
                         $collection->collector?->name ?? '',
                         $collection->status->label(),
                     ], null, "A{$row}");
+
+                    // Written as text: an all-digit GCash reference would otherwise
+                    // become a number and lose its leading zeros or precision.
+                    if ($collection->reference_number) {
+                        $sheet->setCellValueExplicit("I{$row}", $collection->reference_number, DataType::TYPE_STRING);
+                    }
 
                     $row++;
                     $index++;
@@ -153,7 +161,7 @@ class ExportCollectionReport
 
         if ($lastDataRow >= 2) {
             $sheet->getStyle("G2:G{$lastDataRow}")->getNumberFormat()->setFormatCode(self::MONEY_FORMAT);
-            $sheet->getStyle("A2:J{$lastDataRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            $sheet->getStyle("A2:K{$lastDataRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
 
             // Total row, as a live SUM so the figure survives edits in Excel.
             $totalRow = $lastDataRow + 1;
@@ -161,15 +169,15 @@ class ExportCollectionReport
             $sheet->setCellValue("G{$totalRow}", "=SUM(G2:G{$lastDataRow})");
             $sheet->getStyle("F{$totalRow}:G{$totalRow}")->getFont()->setBold(true);
             $sheet->getStyle("G{$totalRow}")->getNumberFormat()->setFormatCode(self::MONEY_FORMAT);
-            $sheet->getStyle("A{$totalRow}:J{$totalRow}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_MEDIUM);
+            $sheet->getStyle("A{$totalRow}:K{$totalRow}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_MEDIUM);
 
-            $sheet->setAutoFilter("A1:J{$lastDataRow}");
+            $sheet->setAutoFilter("A1:K{$lastDataRow}");
         } else {
             $sheet->setCellValue('A2', 'No collections recorded for this period.');
         }
 
         $sheet->freezePane('A2');
-        $this->autoSize($sheet, 'A', 'J');
+        $this->autoSize($sheet, 'A', 'K');
     }
 
     private function buildSectionSheet(Worksheet $sheet): void

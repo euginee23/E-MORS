@@ -218,6 +218,7 @@ new class extends Component {
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Date') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Amount') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Method') }}</th>
+                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Reference No.') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Collector') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Status') }}</th>
                         </tr>
@@ -229,8 +230,9 @@ new class extends Component {
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $payment->payment_date->format('M j, Y') }}</td>
                             <td class="px-6 py-3 font-medium text-zinc-900 dark:text-zinc-100">₱ {{ number_format($payment->amount, 0) }}</td>
                             <td class="px-6 py-3">
-                                <flux:badge color="zinc" size="sm">{{ ucfirst($payment->payment_method) }}</flux:badge>
+                                <flux:badge color="zinc" size="sm">{{ ucfirst(str_replace('_', ' ', $payment->payment_method)) }}</flux:badge>
                             </td>
+                            <td class="px-6 py-3 font-mono text-xs text-zinc-700 dark:text-zinc-300">{{ $payment->reference_number ?? '—' }}</td>
                             <td class="px-6 py-3 text-zinc-600 dark:text-zinc-400">{{ $payment->collector?->name ?? '—' }}</td>
                             <td class="px-6 py-3">
                                 <flux:badge :color="$payment->status->color()" size="sm">{{ $payment->status->label() }}</flux:badge>
@@ -238,7 +240,7 @@ new class extends Component {
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-zinc-500">
+                            <td colspan="7" class="px-6 py-8 text-center text-zinc-500">
                                 {{ __('No payments found.') }}
                             </td>
                         </tr>

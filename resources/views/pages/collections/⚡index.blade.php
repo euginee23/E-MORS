@@ -109,6 +109,7 @@ new class extends Component {
             ->with(['vendor', 'stall', 'collector'])
             ->when($this->search, fn ($q) => $q->where(fn ($q2) =>
                 $q2->where('receipt_number', 'like', '%' . $this->search . '%')
+                   ->orWhere('reference_number', 'like', '%' . $this->search . '%')
                    ->orWhereHas('vendor', fn ($q3) => $q3->where('contact_name', 'like', '%' . $this->search . '%'))
             ))
             ->when($this->statusFilter !== 'all', fn ($q) => $q->where('status', $this->statusFilter))
@@ -221,7 +222,7 @@ new class extends Component {
         {{-- Search & Filter --}}
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div class="flex-1">
-                <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="{{ __('Search by vendor or receipt number...') }}" />
+                <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="{{ __('Search by vendor, receipt, or reference number...') }}" />
             </div>
             <flux:select wire:model.live="statusFilter" class="sm:w-40">
                 <flux:select.option value="all">{{ __('All Status') }}</flux:select.option>
@@ -330,8 +331,14 @@ new class extends Component {
                 </div>
                 <div class="flex justify-between px-4 py-3">
                     <flux:text class="text-zinc-500">{{ __('Method') }}</flux:text>
-                    <flux:text class="font-medium">{{ ucfirst($viewingCollection->payment_method) }}</flux:text>
+                    <flux:text class="font-medium">{{ ucfirst(str_replace('_', ' ', $viewingCollection->payment_method)) }}</flux:text>
                 </div>
+                @if($viewingCollection->reference_number)
+                <div class="flex justify-between px-4 py-3">
+                    <flux:text class="text-zinc-500">{{ __('Reference No.') }}</flux:text>
+                    <flux:text class="font-mono font-medium">{{ $viewingCollection->reference_number }}</flux:text>
+                </div>
+                @endif
                 <div class="flex justify-between px-4 py-3">
                     <flux:text class="text-zinc-500">{{ __('Collector') }}</flux:text>
                     <flux:text class="font-medium">{{ $viewingCollection->collector?->name ?? '—' }}</flux:text>

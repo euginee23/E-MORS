@@ -106,6 +106,7 @@ new class extends Component {
             ->with(['vendor', 'stall'])
             ->when($this->search, fn ($q) => $q->where(fn ($q2) =>
                 $q2->where('receipt_number', 'like', '%' . $this->search . '%')
+                   ->orWhere('reference_number', 'like', '%' . $this->search . '%')
                    ->orWhereHas('vendor', fn ($q3) => $q3->where('contact_name', 'like', '%' . $this->search . '%'))
             ))
             ->when($this->statusFilter !== 'all', fn ($q) => $q->where('status', $this->statusFilter))
@@ -224,7 +225,7 @@ new class extends Component {
         {{-- Filters --}}
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div class="flex-1">
-                <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="{{ __('Search by vendor name or receipt number...') }}" />
+                <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="{{ __('Search by vendor, receipt, or reference number...') }}" />
             </div>
             <flux:select wire:model.live="statusFilter" class="sm:w-40">
                 <flux:select.option value="all">{{ __('All Status') }}</flux:select.option>
@@ -270,7 +271,9 @@ new class extends Component {
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stall') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Amount') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Method') }}</th>
+                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Reference No.') }}</th>
                             <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Status') }}</th>
+                            <th class="px-6 py-3 font-medium text-zinc-500 dark:text-zinc-400"><span class="sr-only">{{ __('Actions') }}</span></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-orange-100 dark:divide-zinc-700">
@@ -282,15 +285,19 @@ new class extends Component {
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $collection->stall?->stall_number ?? '—' }}</td>
                             <td class="px-6 py-3 font-medium text-zinc-900 dark:text-zinc-100">₱ {{ number_format($collection->amount, 0) }}</td>
                             <td class="px-6 py-3">
-                                <flux:badge color="zinc" size="sm">{{ ucfirst($collection->payment_method) }}</flux:badge>
+                                <flux:badge color="zinc" size="sm">{{ ucfirst(str_replace('_', ' ', $collection->payment_method)) }}</flux:badge>
                             </td>
+                            <td class="px-6 py-3 font-mono text-xs text-zinc-700 dark:text-zinc-300">{{ $collection->reference_number ?? '—' }}</td>
                             <td class="px-6 py-3">
                                 <flux:badge :color="$collection->status->color()" size="sm">{{ $collection->status->label() }}</flux:badge>
+                            </td>
+                            <td class="px-6 py-3 text-right">
+                                <flux:button size="sm" variant="ghost" icon="printer" :href="route('collector.receipts.print', $collection)" target="_blank" :tooltip="__('Print receipt')" />
                             </td>
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-8 text-center text-zinc-500">
+                            <td colspan="9" class="px-6 py-8 text-center text-zinc-500">
                                 {{ __('No collections found.') }}
                             </td>
                         </tr>

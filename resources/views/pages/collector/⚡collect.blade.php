@@ -21,6 +21,7 @@ new class extends Component {
     public string $formAmount = '';
     public string $formPaymentMethod = 'cash';
     public string $formPaymentDate = '';
+    public string $formReferenceNumber = '';
     public string $formNotes = '';
 
     /**
@@ -214,10 +215,13 @@ new class extends Component {
             'formStallId' => ['required', 'integer'],
             'formAmount' => ['required', 'numeric', 'min:0.01'],
             'formPaymentDate' => ['required', 'date'],
-            'formPaymentMethod' => ['required', 'string', 'max:50'],
+            'formPaymentMethod' => ['required', Rule::in(['cash', 'gcash', 'bank_transfer'])],
+            // A GCash or bank payment is only traceable through its transaction reference.
+            'formReferenceNumber' => ['nullable', 'required_unless:formPaymentMethod,cash', 'string', 'max:100'],
             'formNotes' => ['nullable', 'string', 'max:500'],
         ], [
             'formStallId.required' => 'Please select which stall this payment is for.',
+            'formReferenceNumber.required_unless' => 'Enter the GCash / bank reference number for this payment.',
         ]);
 
         // Guard against a stall id that does not belong to the chosen vendor.
@@ -235,6 +239,7 @@ new class extends Component {
             'amount' => $this->formAmount,
             'payment_date' => $this->formPaymentDate,
             'payment_method' => $this->formPaymentMethod,
+            'reference_number' => $this->formPaymentMethod === 'cash' ? null : (trim($this->formReferenceNumber) ?: null),
             'status' => PaymentStatus::Paid,
             'notes' => $this->formNotes ?: null,
         ]);
@@ -334,6 +339,7 @@ new class extends Component {
         $this->formAmount = '';
         $this->formPaymentDate = now()->toDateString();
         $this->formPaymentMethod = 'cash';
+        $this->formReferenceNumber = '';
         $this->formNotes = '';
         $this->resetValidation();
     }
@@ -387,7 +393,7 @@ new class extends Component {
             <div class="receipt-sheet">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div class="flex items-start gap-3">
-                        <flux:icon.check-circle class="mt-0.5 size-6 shrink-0 text-emerald-600 dark:text-emerald-400 print:hidden" />
+                        <flux:icon.check-circle class="mt-0.5 size-6 shrink-0 text-emerald-600 dark:text-emerald-400" />
                         <div class="min-w-0">
                             <flux:heading size="lg" class="text-emerald-900 dark:text-emerald-100">{{ __('Payment Recorded') }}</flux:heading>
                             <p class="mt-0.5 font-mono text-sm font-bold wrap-break-word text-emerald-800 dark:text-emerald-200">{{ $receipt->receipt_number }}</p>
@@ -419,6 +425,12 @@ new class extends Component {
                         <dt class="text-zinc-500 dark:text-zinc-400">{{ __('Method') }}</dt>
                         <dd class="text-right font-medium text-zinc-900 dark:text-zinc-100">{{ ucfirst(str_replace('_', ' ', $receipt->payment_method)) }}</dd>
                     </div>
+                    @if($receipt->reference_number)
+                    <div class="flex justify-between gap-3 border-b border-emerald-100 pb-2 dark:border-emerald-900/40">
+                        <dt class="text-zinc-500 dark:text-zinc-400">{{ __('Reference No.') }}</dt>
+                        <dd class="text-right font-mono font-medium wrap-break-word text-zinc-900 dark:text-zinc-100">{{ $receipt->reference_number }}</dd>
+                    </div>
+                    @endif
                     <div class="flex justify-between gap-3 border-b border-emerald-100 pb-2 dark:border-emerald-900/40">
                         <dt class="text-zinc-500 dark:text-zinc-400">{{ __('Amount') }}</dt>
                         <dd class="text-right font-bold text-zinc-900 dark:text-zinc-100">₱ {{ number_format($receipt->amount, 2) }}</dd>
@@ -429,13 +441,9 @@ new class extends Component {
                     </div>
                 </dl>
 
-                {{-- Only meaningful on paper. --}}
-                <div class="mt-8 hidden print:block">
-                    <div class="w-64 border-t border-zinc-400 pt-1 text-xs text-zinc-600">{{ __('Vendor Signature') }}</div>
-                </div>
             </div>
 
-            <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+            <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p class="text-xs">
                     @if($this->lastEmailedTo)
                     <span class="text-emerald-700 dark:text-emerald-400">✉ {{ __('Emailed to') }} <span class="font-medium wrap-break-word">{{ $this->lastEmailedTo }}</span></span>
@@ -453,23 +461,11 @@ new class extends Component {
                         <span wire:loading wire:target="resendReceiptEmail">{{ __('Sending…') }}</span>
                     </flux:button>
                     @endif
-                    <flux:button size="sm" variant="primary" icon="printer" x-on:click="window.print()">{{ __('Print Receipt') }}</flux:button>
+                    <flux:button size="sm" variant="primary" icon="printer" :href="route('collector.receipts.print', $receipt)" target="_blank">{{ __('Print Receipt') }}</flux:button>
                 </div>
             </div>
         </div>
 
-        {{-- Printing this page yields the receipt alone, on a clean sheet. --}}
-        <style>
-            @media print {
-                body * { visibility: hidden !important; }
-                #collector-receipt, #collector-receipt * { visibility: visible !important; }
-                #collector-receipt {
-                    position: absolute; inset: 0 auto auto 0; width: 100%;
-                    border: 0 !important; background: #fff !important; padding: 0 !important; box-shadow: none !important;
-                }
-                #collector-receipt .receipt-sheet { color: #000 !important; }
-            }
-        </style>
         @endif
 
         <div class="grid gap-6 lg:grid-cols-3">
@@ -537,7 +533,7 @@ new class extends Component {
 
                         <div class="grid gap-5 sm:grid-cols-2">
                             <flux:input wire:model="formAmount" :label="__('Amount (₱)')" type="number" step="0.01" min="0" required />
-                            <flux:select wire:model="formPaymentMethod" :label="__('Payment Method')">
+                            <flux:select wire:model.live="formPaymentMethod" :label="__('Payment Method')">
                                 <flux:select.option value="cash">{{ __('Cash') }}</flux:select.option>
                                 <flux:select.option value="gcash">{{ __('GCash') }}</flux:select.option>
                                 <flux:select.option value="bank_transfer">{{ __('Bank Transfer') }}</flux:select.option>
@@ -546,7 +542,11 @@ new class extends Component {
 
                         <div class="grid gap-5 sm:grid-cols-2">
                             <flux:input wire:model="formPaymentDate" :label="__('Collection Date')" type="date" required />
+                            @if($formPaymentMethod !== 'cash')
+                            <flux:input wire:model="formReferenceNumber" :label="$formPaymentMethod === 'gcash' ? __('GCash Reference No.') : __('Bank Reference No.')" placeholder="{{ __('e.g. 1012 345 678901') }}" maxlength="100" required />
+                            @else
                             <div></div>
+                            @endif
                         </div>
 
                         <flux:textarea wire:model="formNotes" :label="__('Notes (Optional)')" placeholder="Any additional notes about this collection..." rows="3" />

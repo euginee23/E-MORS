@@ -820,7 +820,8 @@ class MarketRevisionsTest extends TestCase
             ->assertSee('Print Receipt')
             ->assertSee('Maria Santos')
             ->assertSee('A-01')
-            ->assertSeeHtml('window.print()');
+            // Print opens a standalone receipt page rather than printing this screen.
+            ->assertSeeHtml(route('collector.receipts.print', Collection::latest('id')->first()));
     }
 
     public function test_admin_can_view_a_receipt_but_cannot_print_or_email_it(): void

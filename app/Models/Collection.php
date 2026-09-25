@@ -21,6 +21,7 @@ class Collection extends Model
         'amount',
         'payment_date',
         'payment_method',
+        'reference_number',
         'status',
         'notes',
     ];

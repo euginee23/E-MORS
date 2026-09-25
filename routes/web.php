@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\VerifyEmailCodeController;
+use App\Http\Controllers\Collector\PrintReceiptController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SuperAdmin\AdminPhotoController;
 use Illuminate\Support\Facades\Route;
@@ -56,6 +57,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::livewire('collect', 'pages::collector.collect')->name('collect');
             Route::livewire('collections', 'pages::collector.collections')->name('collections');
             Route::livewire('vendors', 'pages::collector.vendors')->name('vendors');
+
+            Route::get('receipts/{collection}/print', PrintReceiptController::class)->name('receipts.print');
         });
 
         // Vendor routes

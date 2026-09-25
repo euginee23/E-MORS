@@ -70,6 +70,12 @@
                         <td class="lbl">Payment Method</td>
                         <td class="val">{{ ucfirst(str_replace('_', ' ', (string) $collection->payment_method)) }}</td>
                     </tr>
+                    @if($collection->reference_number)
+                    <tr>
+                        <td class="lbl">Reference No.</td>
+                        <td class="val">{{ $collection->reference_number }}</td>
+                    </tr>
+                    @endif
                     <tr>
                         <td class="lbl">Received By</td>
                         <td class="val">{{ $collection->collector?->name ?? '—' }}</td>

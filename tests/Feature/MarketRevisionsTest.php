@@ -209,12 +209,13 @@ class MarketRevisionsTest extends TestCase
         $this->assertNotNull($spare->fresh()->rent_expiry);
     }
 
-    public function test_stall_number_is_capped_at_twelve_characters(): void
+    public function test_stall_number_is_capped_at_sixteen_characters(): void
     {
+        // Room for a 12-letter section name plus the "-NN" suffix.
         \Livewire\Livewire::actingAs($this->admin())
             ->test('pages::stalls.index')
             ->call('openCreateModal')
-            ->set('formStallNumber', str_repeat('X', 13))
+            ->set('formStallNumber', str_repeat('X', 17))
             ->set('formSection', 'C')
             ->set('formSize', '3x3m')
             ->set('formMonthlyRate', '1000')
@@ -224,7 +225,7 @@ class MarketRevisionsTest extends TestCase
         \Livewire\Livewire::actingAs($this->admin())
             ->test('pages::stalls.index')
             ->call('openCreateModal')
-            ->set('formStallNumber', str_repeat('X', 12))
+            ->set('formStallNumber', str_repeat('X', 16))
             ->set('formSection', 'C')
             ->set('formSize', '3x3m')
             ->set('formMonthlyRate', '1000')

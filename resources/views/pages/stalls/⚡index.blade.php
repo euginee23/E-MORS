@@ -182,12 +182,12 @@ new class extends Component {
     {
         $this->validate([
             'formStallNumber' => [
-                'required', 'string', 'max:12',
+                'required', 'string', 'max:16',
                 $this->editingStallId
                     ? Rule::unique('stalls', 'stall_number')->where('market_id', $this->marketId)->ignore($this->editingStallId)
                     : Rule::unique('stalls', 'stall_number')->where('market_id', $this->marketId),
             ],
-            'formSection' => ['required', 'string', 'max:5'],
+            'formSection' => ['required', 'string', 'max:12'],
             'formSize' => ['required', 'string', 'max:10'],
             'formMonthlyRate' => ['required', 'numeric', 'min:0'],
             'formStatus' => ['required', Rule::in(array_column(StallStatus::cases(), 'value'))],
@@ -261,7 +261,7 @@ new class extends Component {
 
     public function saveSection(): void
     {
-        $this->validate(['editingSectionName' => ['required', 'alpha', 'max:5']]);
+        $this->validate(['editingSectionName' => ['required', 'alpha', 'max:12']]);
         $old = $this->editingSection;
         $new = strtoupper(trim($this->editingSectionName));
 
@@ -371,7 +371,7 @@ new class extends Component {
 
     public function createSection(): void
     {
-        $this->validate(['newSectionLetter' => ['required', 'alpha', 'max:5']]);
+        $this->validate(['newSectionLetter' => ['required', 'alpha', 'max:12']]);
         $letter = strtoupper(trim($this->newSectionLetter));
 
         if (array_key_exists($letter, $this->stallMap)) {
@@ -413,7 +413,7 @@ new class extends Component {
 
         $this->validate([
             'inlineStallNumber' => [
-                'required', 'string', 'max:12',
+                'required', 'string', 'max:16',
                 Rule::unique('stalls', 'stall_number')->where('market_id', $this->marketId),
             ],
             'inlineSize' => ['required', 'string', 'max:10'],
@@ -505,7 +505,7 @@ new class extends Component {
                     {{-- Section header with inline rename --}}
                     @if($editingSection === $sectionKey)
                     <div class="mb-2 flex items-center gap-2">
-                        <input wire:model="editingSectionName" wire:keydown.enter="saveSection" wire:keydown.escape="cancelEditSection" type="text" maxlength="5" class="w-32 rounded-lg border border-orange-400 bg-white px-3 py-1.5 text-sm font-semibold uppercase tracking-wider shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:bg-zinc-800 dark:text-zinc-200" />
+                        <input wire:model="editingSectionName" wire:keydown.enter="saveSection" wire:keydown.escape="cancelEditSection" type="text" maxlength="12" class="w-44 rounded-lg border border-orange-400 bg-white px-3 py-1.5 text-sm font-semibold uppercase tracking-wider shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:bg-zinc-800 dark:text-zinc-200" />
                         @error('editingSectionName') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         <button type="button" wire:click="saveSection" wire:loading.attr="disabled" wire:target="saveSection" class="cursor-pointer rounded-md bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70">
                             <span wire:loading.remove wire:target="saveSection">{{ __('Save') }}</span>
@@ -622,7 +622,7 @@ new class extends Component {
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
                             <div class="flex flex-col gap-1.5">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Stall No.') }}</label>
-                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" maxlength="12" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $sectionKey }}-01" />
+                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" maxlength="16" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $sectionKey }}-01" />
                                 @error('inlineStallNumber') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
                             <div class="flex flex-col gap-1.5">
@@ -661,7 +661,7 @@ new class extends Component {
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
                             <div class="flex flex-col gap-1.5">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Stall No.') }}</label>
-                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" maxlength="12" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $addingStallSection }}-01" />
+                                <input wire:model="inlineStallNumber" wire:keydown.enter="quickSaveStall" type="text" maxlength="16" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="{{ $addingStallSection }}-01" />
                                 @error('inlineStallNumber') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
                             <div class="flex flex-col gap-1.5">
@@ -728,7 +728,7 @@ new class extends Component {
                         <div class="flex flex-wrap items-end gap-4">
                             <div class="flex flex-col gap-1.5 flex-1 max-w-xs">
                                 <label class="text-xs font-medium text-zinc-600 dark:text-zinc-400">{{ __('Section letter') }}</label>
-                                <input wire:model="newSectionLetter" wire:keydown.enter="createSection" type="text" maxlength="5" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm uppercase tracking-widest shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="E" />
+                                <input wire:model="newSectionLetter" wire:keydown.enter="createSection" type="text" maxlength="12" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm uppercase tracking-widest shadow-sm focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400/30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200" placeholder="E" />
                                 @error('newSectionLetter') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
                             <div class="flex items-end gap-2">
@@ -861,8 +861,8 @@ new class extends Component {
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 flex-1">
-                    <flux:input wire:model="formStallNumber" :label="__('Stall No.')" type="text" required maxlength="12" placeholder="A-01" />
-                    <flux:input wire:model="formSection" :label="__('Section')" type="text" required maxlength="5" placeholder="A" />
+                    <flux:input wire:model="formStallNumber" :label="__('Stall No.')" type="text" required maxlength="16" placeholder="A-01" />
+                    <flux:input wire:model="formSection" :label="__('Section')" type="text" required maxlength="12" placeholder="A" />
                     <flux:input wire:model="formSize" :label="__('Size')" type="text" required maxlength="10" placeholder="3x3m" />
                     <flux:input wire:model="formMonthlyRate" :label="__('Rate (₱)')" type="number" required step="0.01" />
                 </div>

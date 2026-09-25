@@ -13,8 +13,10 @@ use Livewire\Component;
 
 new class extends Component {
 
-    public ?int $formVendorId = null;
-    public ?int $formStallId = null;
+    // The select placeholders post an empty string, so these accept one and
+    // the updated hooks normalise it back to null.
+    public int|string|null $formVendorId = null;
+    public int|string|null $formStallId = null;
     public string $formStall = '';
     public string $formAmount = '';
     public string $formPaymentMethod = 'cash';
@@ -40,6 +42,7 @@ new class extends Component {
 
     public function updatedFormVendorId(): void
     {
+        $this->formVendorId = $this->formVendorId === '' ? null : (int) $this->formVendorId;
         $this->formStallId = null;
         $this->formStall = '';
         $this->formAmount = '';
@@ -53,6 +56,7 @@ new class extends Component {
 
     public function updatedFormStallId(): void
     {
+        $this->formStallId = $this->formStallId === '' ? null : (int) $this->formStallId;
         $this->applySelectedStall();
     }
 

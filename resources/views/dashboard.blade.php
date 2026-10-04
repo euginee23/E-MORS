@@ -51,6 +51,10 @@
             ->where('status', PaymentStatus::Paid)->latest('payment_date')->first() : null;
         $myCollections = $myVendor ? Collection::where('vendor_id', $myVendor->id)
             ->with(['stall'])->orderBy('created_at', 'desc')->limit(5)->get() : collect();
+        // This month's rent per stall, derived from each stall's rate against its paid collections.
+        $myDues = \App\Support\StallDues::currentMonth($myStalls);
+        $myPaidCount = $myDues->filter(fn ($due) => $due->isSettled())->count();
+        $myUnpaidCount = $myDues->count() - $myPaidCount;
     }
 @endphp
 <x-layouts::app :title="__('Dashboard')">
@@ -161,7 +165,15 @@
                     </div>
                 </div>
                 <div class="mt-3">
-                    @if($lastPayment)
+                    @if($myDues->isNotEmpty())
+                    <div class="flex flex-wrap gap-1.5">
+                        <flux:badge color="lime" size="sm">{{ $myPaidCount }} {{ __('Paid') }}</flux:badge>
+                        @if($myUnpaidCount)
+                        <flux:badge color="red" size="sm">{{ $myUnpaidCount }} {{ __('Unpaid') }}</flux:badge>
+                        @endif
+                    </div>
+                    <flux:text class="mt-1 text-xs text-zinc-500">{{ __('Stall rental monitoring · :month', ['month' => now()->format('F Y')]) }}</flux:text>
+                    @elseif($lastPayment)
                     <flux:badge color="{{ $lastPayment->status->color() }}" size="sm">{{ $lastPayment->status->label() }}</flux:badge>
                     <flux:text class="mt-1 text-xs text-zinc-500">Last payment: {{ $lastPayment->payment_date->format('M j, Y') }}</flux:text>
                     @else
@@ -205,7 +217,8 @@
         @if($user->isVendor() && $myStalls->isNotEmpty())
         {{-- My Stalls — one card per rented space --}}
         <div>
-            <flux:heading size="lg" class="mb-3">{{ __('My Stalls') }}</flux:heading>
+            <flux:heading size="lg">{{ __('My Stalls') }}</flux:heading>
+            <flux:text class="mb-3 text-sm text-zinc-500">{{ __('Stall rental monitoring — each stall is marked Paid or Unpaid for :month.', ['month' => now()->format('F Y')]) }}</flux:text>
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach($myStalls as $rentedStall)
                 <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
@@ -232,6 +245,20 @@
                         <div class="flex items-center justify-between">
                             <dt class="text-zinc-500">{{ __('Rent Expiry') }}</dt>
                             <dd class="font-medium text-zinc-700 dark:text-zinc-300">{{ $rentedStall->rent_expiry?->format('M j, Y') ?? '—' }}</dd>
+                        </div>
+                        @php $stallDue = $myDues->get($rentedStall->id); @endphp
+                        <div class="flex items-center justify-between border-t border-zinc-100 pt-2 dark:border-zinc-700">
+                            <dt class="text-zinc-500">{{ __('Rental Payment') }}</dt>
+                            <dd class="text-right">
+                                @if($stallDue)
+                                <flux:badge :color="$stallDue->status()->color()" size="sm">{{ $stallDue->status()->label() }}</flux:badge>
+                                @if($stallDue->status() === \App\Enums\DueStatus::Partial)
+                                <div class="mt-0.5 text-xs text-zinc-500">{{ __('₱:amount balance', ['amount' => number_format($stallDue->balance(), 0)]) }}</div>
+                                @endif
+                                @else
+                                <span class="text-zinc-400">—</span>
+                                @endif
+                            </dd>
                         </div>
                     </dl>
                 </div>

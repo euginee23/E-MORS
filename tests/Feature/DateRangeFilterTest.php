@@ -220,3 +220,67 @@ test('reports show the trend, section, top vendor, and overdue panels', function
             'Collection Ledger', 'RCP-NOW',
         ]);
 });
+
+// ─── Admin collections: collector & section filters and summaries ───
+
+test('admin collections filter by collector and section and summarise by both', function () {
+    $other = User::factory()->create([
+        'role' => UserRole::Collector,
+        'name' => 'Ben Cruz',
+        'market_id' => $this->market->id,
+        'status' => AdminStatus::Verified,
+    ]);
+
+    $wetStall = Stall::create([
+        'market_id' => $this->market->id,
+        'vendor_id' => $this->vendor->id,
+        'stall_number' => 'WET-01',
+        'section' => 'WET',
+        'status' => StallStatus::Occupied,
+    ]);
+
+    Collection::create([
+        'market_id' => $this->market->id,
+        'vendor_id' => $this->vendor->id,
+        'stall_id' => $wetStall->id,
+        'collector_id' => $other->id,
+        'receipt_number' => 'RCP-WET',
+        'amount' => 600,
+        'payment_date' => '2026-07-20',
+        'payment_method' => 'cash',
+        'status' => PaymentStatus::Paid,
+    ]);
+
+    $component = Livewire::actingAs($this->admin)->test('pages::collections.index');
+
+    expect(collect($component->get('byCollector'))->pluck('amount', 'name')->all())
+        ->toBe([$this->collector->name => 7500.0, 'Ben Cruz' => 600.0])
+        ->and(collect($component->get('bySection'))->pluck('amount', 'name')->all())
+        ->toBe(['A' => 7500.0, 'WET' => 600.0]);
+
+    $component->set('collectorFilter', (string) $other->id)
+        ->assertSee('RCP-WET')
+        ->assertDontSee('RCP-INSIDE')
+        ->assertSet('rangeTotals.collectors', 1)
+        ->set('collectorFilter', 'all')
+        ->set('sectionFilter', 'A')
+        ->assertSee('RCP-INSIDE')
+        ->assertDontSee('RCP-WET')
+        ->assertSet('rangeTotals.sections', 1);
+});
+
+test('choosing a preset period fills the from and to dates', function () {
+    Carbon\Carbon::setTestNow('2026-09-15');
+
+    Livewire::actingAs($this->admin)
+        ->test('pages::collections.index')
+        ->set('periodFilter', 'month')
+        ->assertSet('dateFrom', '2026-09-01')
+        ->assertSet('dateTo', '2026-09-30')
+        ->set('dateFrom', '2026-07-01')
+        ->assertSet('periodFilter', 'custom')
+        ->assertSee('RCP-INSIDE')
+        ->assertDontSee('RCP-BEFORE');
+
+    Carbon\Carbon::setTestNow();
+});

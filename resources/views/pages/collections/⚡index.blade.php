@@ -6,8 +6,12 @@
  */
 
 use App\Enums\PaymentStatus;
+use App\Enums\UserRole;
 use App\Models\Collection;
+use App\Models\Stall;
+use App\Models\User;
 use App\Support\DateRange;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Validate;
@@ -17,8 +21,20 @@ use Livewire\WithPagination;
 new class extends Component {
     use WithPagination;
 
+    /** Period presets shown as the segmented control, keyed by DateRange period. */
+    public const PERIODS = [
+        'all' => 'All',
+        'today' => 'Daily',
+        'week' => 'Weekly',
+        'month' => 'Monthly',
+        'year' => 'Yearly',
+        'custom' => 'Custom',
+    ];
+
     public string $search = '';
     public string $statusFilter = 'all';
+    public string $collectorFilter = 'all';
+    public string $sectionFilter = 'all';
     public string $periodFilter = 'all';
 
     #[Validate('nullable|date')]
@@ -33,42 +49,76 @@ new class extends Component {
 
     public function updatedSearch(): void
     {
-        $this->resetPage();
+        $this->clearRangeCache();
     }
 
     public function updatedStatusFilter(): void
     {
-        $this->resetPage();
+        $this->clearRangeCache();
     }
 
-    public function updatedPeriodFilter(): void
+    public function updatedCollectorFilter(): void
     {
         $this->clearRangeCache();
     }
 
+    public function updatedSectionFilter(): void
+    {
+        $this->clearRangeCache();
+    }
+
+    /**
+     * A preset fills the From/To inputs with the window it resolves to, so the
+     * dates on screen always describe what the figures cover.
+     */
+    public function updatedPeriodFilter(): void
+    {
+        if ($this->periodFilter !== 'custom') {
+            $range = DateRange::resolve($this->periodFilter);
+            $this->dateFrom = $range?->start->toDateString();
+            $this->dateTo = $range?->end->toDateString();
+            $this->resetValidation();
+        }
+
+        $this->clearRangeCache();
+    }
+
+    /** Typing a date is choosing a custom window. */
     public function updatedDateFrom(): void
     {
+        $this->periodFilter = 'custom';
         $this->validateOnly('dateFrom');
         $this->clearRangeCache();
     }
 
     public function updatedDateTo(): void
     {
+        $this->periodFilter = 'custom';
         $this->validateOnly('dateTo');
         $this->clearRangeCache();
     }
 
     public function clearCustomRange(): void
     {
+        $this->periodFilter = 'all';
         $this->dateFrom = null;
         $this->dateTo = null;
         $this->resetValidation();
         $this->clearRangeCache();
     }
 
+    public function clearFilters(): void
+    {
+        $this->search = '';
+        $this->statusFilter = 'all';
+        $this->collectorFilter = 'all';
+        $this->sectionFilter = 'all';
+        $this->clearCustomRange();
+    }
+
     /**
-     * Every figure on this page is period-scoped, so the whole set has to be
-     * recomputed whenever the window moves.
+     * Every figure on this page follows the filters, so the whole set has to be
+     * recomputed whenever any of them move.
      */
     private function clearRangeCache(): void
     {
@@ -78,8 +128,8 @@ new class extends Component {
             $this->range,
             $this->collections,
             $this->rangeTotals,
-            $this->pendingCount,
-            $this->collectionRate,
+            $this->byCollector,
+            $this->bySection,
         );
     }
 
@@ -103,66 +153,102 @@ new class extends Component {
     }
 
     #[Computed]
-    public function collections()
+    public function collectorOptions()
     {
-        return Collection::where('market_id', $this->marketId)
-            ->with(['vendor', 'stall', 'collector'])
+        return User::where('market_id', $this->marketId)
+            ->where('role', UserRole::Collector)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
+
+    #[Computed]
+    public function sectionOptions()
+    {
+        return Stall::where('market_id', $this->marketId)->distinct()->orderBy('section')->pluck('section');
+    }
+
+    /**
+     * The one filtered base the table and every summary build on, so they can't
+     * disagree about which collections are in view.
+     */
+    private function filteredQuery(): Builder
+    {
+        return Collection::query()
+            ->where('collections.market_id', $this->marketId)
             ->when($this->search, fn ($q) => $q->where(fn ($q2) =>
                 $q2->where('receipt_number', 'like', '%' . $this->search . '%')
                    ->orWhere('reference_number', 'like', '%' . $this->search . '%')
                    ->orWhereHas('vendor', fn ($q3) => $q3->where('contact_name', 'like', '%' . $this->search . '%'))
             ))
-            ->when($this->statusFilter !== 'all', fn ($q) => $q->where('status', $this->statusFilter))
-            ->when($this->range, fn ($q) => $this->range->applyTo($q))
+            ->when($this->statusFilter !== 'all', fn ($q) => $q->where('collections.status', $this->statusFilter))
+            ->when($this->collectorFilter !== 'all', fn ($q) => $q->where('collections.collector_id', $this->collectorFilter))
+            ->when($this->sectionFilter !== 'all', fn ($q) => $q->whereHas('stall', fn ($s) => $s->where('section', $this->sectionFilter)))
+            ->when($this->range, fn ($q) => $this->range->applyTo($q, 'collections.payment_date'));
+    }
+
+    #[Computed]
+    public function collections()
+    {
+        return $this->filteredQuery()
+            ->with(['vendor', 'stall', 'collector'])
+            ->orderBy('payment_date', 'desc')
             ->orderBy('created_at', 'desc')
             ->paginate(10);
     }
 
-    #[Computed]
-    public function todayTotal(): string
-    {
-        $total = Collection::where('market_id', $this->marketId)
-            ->where('status', PaymentStatus::Paid)
-            ->whereDate('payment_date', today())
-            ->sum('amount');
-        return '₱ ' . number_format($total, 0);
-    }
-
     /**
-     * Amount and transaction count for whichever window the filter currently
-     * describes — the headline figures for a custom date range.
+     * Headline figures for the filtered window. Amounts only count paid
+     * collections; the receipt count covers every record in view.
      */
     #[Computed]
     public function rangeTotals(): array
     {
-        $query = Collection::where('market_id', $this->marketId)
-            ->when($this->range, fn ($q) => $this->range->applyTo($q));
+        $query = $this->filteredQuery();
 
         return [
-            'amount' => '₱ ' . number_format((float) $query->clone()->where('status', PaymentStatus::Paid)->sum('amount'), 0),
+            'amount' => (float) $query->clone()->where('collections.status', PaymentStatus::Paid)->sum('collections.amount'),
             'count' => (int) $query->clone()->count(),
+            'collectors' => (int) $query->clone()->whereNotNull('collections.collector_id')->distinct()->count('collections.collector_id'),
+            'sections' => (int) $query->clone()->join('stalls', 'collections.stall_id', '=', 'stalls.id')->distinct()->count('stalls.section'),
         ];
     }
 
     #[Computed]
-    public function pendingCount(): int
+    public function byCollector(): array
     {
-        return Collection::where('market_id', $this->marketId)
-            ->where('status', PaymentStatus::Pending)
-            ->when($this->range, fn ($q) => $this->range->applyTo($q))
-            ->count();
+        $rows = $this->filteredQuery()
+            ->selectRaw('collections.collector_id, COUNT(*) as receipts, SUM(CASE WHEN collections.status = ? THEN collections.amount ELSE 0 END) as total', [PaymentStatus::Paid->value])
+            ->groupBy('collections.collector_id')
+            ->orderByDesc('total')
+            ->get();
+
+        $names = User::whereIn('id', $rows->pluck('collector_id')->filter())->pluck('name', 'id');
+        $max = (float) $rows->max('total') ?: 1;
+
+        return $rows->map(fn ($row) => [
+            'name' => $names[$row->collector_id] ?? __('Unassigned'),
+            'receipts' => (int) $row->receipts,
+            'amount' => (float) $row->total,
+            'percentage' => round(((float) $row->total / $max) * 100),
+        ])->all();
     }
 
+    /** Same shape as the Reports section breakdown, narrowed by this page's filters. */
     #[Computed]
-    public function collectionRate(): string
+    public function bySection(): array
     {
-        $query = Collection::where('market_id', $this->marketId)
-            ->when($this->range, fn ($q) => $this->range->applyTo($q));
-
-        $total = $query->clone()->count();
-        $paid = $query->clone()->where('status', PaymentStatus::Paid)->count();
-        $rate = $total > 0 ? round(($paid / $total) * 100, 1) : 0;
-        return $rate . '%';
+        return $this->filteredQuery()
+            ->join('stalls', 'collections.stall_id', '=', 'stalls.id')
+            ->selectRaw('stalls.section, COUNT(*) as receipts, SUM(CASE WHEN collections.status = ? THEN collections.amount ELSE 0 END) as total', [PaymentStatus::Paid->value])
+            ->groupBy('stalls.section')
+            ->orderBy('stalls.section')
+            ->get()
+            ->map(fn ($row) => [
+                'name' => $row->section,
+                'receipts' => (int) $row->receipts,
+                'amount' => (float) $row->total,
+            ])
+            ->all();
     }
 
     public function viewReceipt(int $collectionId): void
@@ -196,64 +282,113 @@ new class extends Component {
             </div>
         </div>
 
+        {{-- Period --}}
+        <div class="flex flex-col gap-4 rounded-2xl border border-orange-100 bg-white/80 p-4 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80 lg:flex-row lg:items-end">
+            <div class="flex-1">
+                <flux:text class="text-sm font-medium text-zinc-700 dark:text-zinc-300">{{ __('Period') }}</flux:text>
+                <div class="mt-2 inline-flex flex-wrap gap-1 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-800">
+                    @foreach($this::PERIODS as $key => $label)
+                    <button type="button" wire:click="$set('periodFilter', '{{ $key }}')" wire:key="period-{{ $key }}"
+                        @class([
+                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                            'bg-orange-500 text-white shadow-sm' => $periodFilter === $key,
+                            'text-zinc-600 hover:bg-white dark:text-zinc-300 dark:hover:bg-zinc-700' => $periodFilter !== $key,
+                        ])>
+                        {{ __($label) }}
+                    </button>
+                    @endforeach
+                </div>
+                <flux:text class="mt-2 text-xs text-zinc-500">{{ $this->rangeLabel }}</flux:text>
+            </div>
+            <div class="grid grid-cols-2 gap-3 lg:w-96">
+                <flux:input wire:model.live="dateFrom" type="date" size="sm" :label="__('From')" max="{{ $dateTo }}" />
+                <flux:input wire:model.live="dateTo" type="date" size="sm" :label="__('To')" min="{{ $dateFrom }}" />
+            </div>
+        </div>
+
         {{-- Stats Row --}}
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                <flux:text class="text-sm text-zinc-500">{{ __("Today's Collections") }}</flux:text>
-                <flux:heading size="xl" class="mt-1 text-2xl font-bold">{{ $this->todayTotal }}</flux:heading>
-            </div>
-            <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                <flux:text class="text-sm text-zinc-500">{{ __('Total Collections') }}</flux:text>
-                <flux:heading size="xl" class="mt-1 text-2xl font-bold">{{ $this->rangeTotals['amount'] }}</flux:heading>
+                <flux:text class="text-sm text-zinc-500">{{ __('Collections') }}</flux:text>
+                <flux:heading size="xl" class="mt-1 text-2xl font-bold">₱ {{ number_format($this->rangeTotals['amount'], 0) }}</flux:heading>
                 <flux:text class="mt-1 text-xs text-zinc-500">{{ $this->rangeLabel }} · {{ $this->rangeTotals['count'] }} {{ trans_choice('transaction|transactions', $this->rangeTotals['count']) }}</flux:text>
             </div>
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                <flux:text class="text-sm text-zinc-500">{{ __('Pending Payments') }}</flux:text>
-                <flux:heading size="xl" class="mt-1 text-2xl font-bold text-amber-600">{{ $this->pendingCount }}</flux:heading>
-                <flux:text class="mt-1 text-xs text-zinc-500">{{ $this->rangeLabel }}</flux:text>
+                <flux:text class="text-sm text-zinc-500">{{ __('Receipts') }}</flux:text>
+                <flux:heading size="xl" class="mt-1 text-2xl font-bold">{{ number_format($this->rangeTotals['count']) }}</flux:heading>
             </div>
             <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
-                <flux:text class="text-sm text-zinc-500">{{ __('Collection Rate') }}</flux:text>
-                <flux:heading size="xl" class="mt-1 text-2xl font-bold text-emerald-600">{{ $this->collectionRate }}</flux:heading>
-                <flux:text class="mt-1 text-xs text-zinc-500">{{ $this->rangeLabel }}</flux:text>
+                <flux:text class="text-sm text-zinc-500">{{ __('Collectors') }}</flux:text>
+                <flux:heading size="xl" class="mt-1 text-2xl font-bold">{{ number_format($this->rangeTotals['collectors']) }}</flux:heading>
+            </div>
+            <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
+                <flux:text class="text-sm text-zinc-500">{{ __('Sections') }}</flux:text>
+                <flux:heading size="xl" class="mt-1 text-2xl font-bold">{{ number_format($this->rangeTotals['sections']) }}</flux:heading>
+            </div>
+        </div>
+
+        {{-- Summaries --}}
+        <div class="grid gap-4 lg:grid-cols-2">
+            <div class="rounded-2xl border border-orange-100 bg-white/80 p-4 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
+                <flux:heading size="sm">{{ __('By Collector') }}</flux:heading>
+                <div class="mt-3 space-y-3">
+                    @forelse($this->byCollector as $row)
+                    <div wire:key="by-collector-{{ $loop->index }}">
+                        <div class="flex items-center justify-between gap-3 text-sm">
+                            <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $row['name'] }}</span>
+                            <span class="text-xs text-zinc-500">{{ trans_choice(':count receipt|:count receipts', $row['receipts']) }}</span>
+                            <span class="font-semibold text-zinc-900 dark:text-zinc-100">₱ {{ number_format($row['amount'], 0) }}</span>
+                        </div>
+                        <div class="mt-1.5 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800">
+                            <div class="h-1.5 rounded-full bg-emerald-500" style="width: {{ $row['percentage'] }}%"></div>
+                        </div>
+                    </div>
+                    @empty
+                    <flux:text class="text-sm text-zinc-400">{{ __('No collections in view.') }}</flux:text>
+                    @endforelse
+                </div>
+            </div>
+            <div class="rounded-2xl border border-orange-100 bg-white/80 p-4 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
+                <flux:heading size="sm">{{ __('By Section') }}</flux:heading>
+                <div class="mt-3 divide-y divide-zinc-100 dark:divide-zinc-800">
+                    @forelse($this->bySection as $row)
+                    <div class="flex items-center justify-between gap-3 py-2 text-sm" wire:key="by-section-{{ $loop->index }}">
+                        <span class="w-20 font-medium text-zinc-900 dark:text-zinc-100">{{ $row['name'] }}</span>
+                        <span class="flex-1 text-xs text-zinc-500">{{ trans_choice(':count receipt|:count receipts', $row['receipts']) }}</span>
+                        <span class="font-semibold text-zinc-900 dark:text-zinc-100">₱ {{ number_format($row['amount'], 0) }}</span>
+                    </div>
+                    @empty
+                    <flux:text class="text-sm text-zinc-400">{{ __('No collections in view.') }}</flux:text>
+                    @endforelse
+                </div>
             </div>
         </div>
 
         {{-- Search & Filter --}}
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div class="flex-1">
                 <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="{{ __('Search by vendor, receipt, or reference number...') }}" />
             </div>
-            <flux:select wire:model.live="statusFilter" class="sm:w-40">
-                <flux:select.option value="all">{{ __('All Status') }}</flux:select.option>
+            <flux:select wire:model.live="statusFilter" class="lg:w-40">
+                <flux:select.option value="all">{{ __('Status: All') }}</flux:select.option>
                 <flux:select.option value="paid">{{ __('Paid') }}</flux:select.option>
                 <flux:select.option value="pending">{{ __('Pending') }}</flux:select.option>
                 <flux:select.option value="overdue">{{ __('Overdue') }}</flux:select.option>
             </flux:select>
-            <flux:select wire:model.live="periodFilter" class="sm:w-40">
-                <flux:select.option value="all">{{ __('All Time') }}</flux:select.option>
-                <flux:select.option value="today">{{ __('Today') }}</flux:select.option>
-                <flux:select.option value="week">{{ __('This Week') }}</flux:select.option>
-                <flux:select.option value="month">{{ __('This Month') }}</flux:select.option>
-                <flux:select.option value="custom">{{ __('Custom range') }}</flux:select.option>
+            <flux:select wire:model.live="collectorFilter" class="lg:w-48">
+                <flux:select.option value="all">{{ __('Collector: All') }}</flux:select.option>
+                @foreach($this->collectorOptions as $collector)
+                <flux:select.option value="{{ $collector->id }}">{{ $collector->name }}</flux:select.option>
+                @endforeach
             </flux:select>
+            <flux:select wire:model.live="sectionFilter" class="lg:w-40">
+                <flux:select.option value="all">{{ __('Section: All') }}</flux:select.option>
+                @foreach($this->sectionOptions as $section)
+                <flux:select.option value="{{ $section }}">{{ $section }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:button variant="ghost" icon="x-mark" wire:click="clearFilters">{{ __('Clear') }}</flux:button>
         </div>
-
-        {{-- Custom Date Range --}}
-        @if($periodFilter === 'custom')
-        <div class="flex flex-col gap-3 rounded-2xl border border-orange-100 bg-white/80 p-4 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80 sm:flex-row sm:items-end">
-            <div class="sm:w-48">
-                <flux:input wire:model.live="dateFrom" type="date" :label="__('From Date')" max="{{ $dateTo }}" />
-            </div>
-            <div class="sm:w-48">
-                <flux:input wire:model.live="dateTo" type="date" :label="__('To Date')" min="{{ $dateFrom }}" />
-            </div>
-            <flux:button variant="ghost" icon="x-mark" wire:click="clearCustomRange">
-                {{ __('Clear') }}
-            </flux:button>
-            <flux:text class="text-sm text-zinc-500 sm:ml-auto sm:pb-2">{{ __('Showing') }}: <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $this->rangeLabel }}</span></flux:text>
-        </div>
-        @endif
 
         {{-- Collections Table --}}
         <div class="rounded-2xl border border-orange-100 bg-white/80 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">

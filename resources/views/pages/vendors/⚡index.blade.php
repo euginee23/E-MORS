@@ -19,6 +19,10 @@ new class extends Component {
 
     public string $search = '';
     public string $statusFilter = 'all';
+    public string $permitFilter = 'all';
+    public string $assignmentFilter = 'all';
+    public string $sectionFilter = 'all';
+    public bool $showFilters = false;
 
     // Create/Edit form
     public bool $showModal = false;
@@ -49,9 +53,49 @@ new class extends Component {
         $this->resetPage();
     }
 
-    public function updatedStatusFilter(): void
+    public function updated(string $property): void
     {
+        if (in_array($property, ['statusFilter', 'permitFilter', 'assignmentFilter', 'sectionFilter'], true)) {
+            $this->resetPage();
+            unset($this->vendors);
+        }
+    }
+
+    public function clearFilters(): void
+    {
+        $this->reset('statusFilter', 'permitFilter', 'assignmentFilter', 'sectionFilter');
         $this->resetPage();
+        unset($this->vendors);
+    }
+
+    /**
+     * The filters currently narrowing the list, as chip label => property.
+     */
+    #[Computed]
+    public function activeFilters(): array
+    {
+        $chips = [];
+
+        if ($this->statusFilter !== 'all') {
+            $chips[__('Stall Status: :v', ['v' => RentalStatus::tryFrom($this->statusFilter)?->label() ?? $this->statusFilter])] = 'statusFilter';
+        }
+        if ($this->permitFilter !== 'all') {
+            $chips[__('Permit: :v', ['v' => PermitStatus::tryFrom($this->permitFilter)?->label() ?? $this->permitFilter])] = 'permitFilter';
+        }
+        if ($this->assignmentFilter !== 'all') {
+            $chips[__('Assignment: :v', ['v' => ucfirst($this->assignmentFilter)])] = 'assignmentFilter';
+        }
+        if ($this->sectionFilter !== 'all') {
+            $chips[__('Section: :v', ['v' => $this->sectionFilter])] = 'sectionFilter';
+        }
+
+        return $chips;
+    }
+
+    #[Computed]
+    public function sections(): array
+    {
+        return Stall::where('market_id', $this->marketId)->distinct()->orderBy('section')->pluck('section')->all();
     }
 
     #[Computed]
@@ -70,6 +114,10 @@ new class extends Component {
                    ->orWhere('contact_name', 'like', '%' . $this->search . '%')
             ))
             ->when($this->statusFilter !== 'all', fn ($q) => $this->scopeRentalStatus($q, $this->statusFilter))
+            ->when($this->permitFilter !== 'all', fn ($q) => $q->where('permit_status', $this->permitFilter))
+            ->when($this->assignmentFilter === 'assigned', fn ($q) => $q->has('stalls'))
+            ->when($this->assignmentFilter === 'unassigned', fn ($q) => $q->doesntHave('stalls'))
+            ->when($this->sectionFilter !== 'all', fn ($q) => $q->whereHas('stalls', fn ($s) => $s->where('section', $this->sectionFilter)))
             ->orderBy('created_at', 'desc')
             ->paginate(10);
     }
@@ -208,8 +256,8 @@ new class extends Component {
     {
         $vendor = Vendor::where('market_id', $this->marketId)->findOrFail($vendorId);
 
-        // Unassign every stall this vendor rents
-        $vendor->stalls()->update([
+        // Unassign every stall this vendor rents — per model, so each tenancy is closed in the history
+        $vendor->stalls->each->update([
             'vendor_id' => null,
             'status' => 'available',
             'rent_start' => null,
@@ -235,7 +283,7 @@ new class extends Component {
 
     private function clearCache(): void
     {
-        unset($this->vendors, $this->totalVendors, $this->activeCount, $this->expiringCount, $this->expiredCount, $this->viewingVendor);
+        unset($this->vendors, $this->totalVendors, $this->activeCount, $this->expiringCount, $this->expiredCount, $this->viewingVendor, $this->sections);
     }
 
     #[Computed]
@@ -398,16 +446,55 @@ new class extends Component {
         </div>
 
         {{-- Search & Filter Bar --}}
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div class="flex-1">
-                <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="{{ __('Search vendors by name or business...') }}" />
+        <div class="rounded-2xl border border-orange-100 bg-white/80 p-4 backdrop-blur-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900/80">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div class="flex-1">
+                    <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="{{ __('Search vendors by name or business...') }}" />
+                </div>
+                <flux:button icon="funnel" wire:click="$toggle('showFilters')" :variant="$showFilters || count($this->activeFilters) ? 'primary' : 'outline'">
+                    {{ __('Filters') }}@if(count($this->activeFilters)) ({{ count($this->activeFilters) }})@endif
+                </flux:button>
             </div>
-            <flux:select wire:model.live="statusFilter" class="sm:w-48">
-                <flux:select.option value="all">{{ __('All Stall Status') }}</flux:select.option>
-                @foreach(\App\Enums\RentalStatus::cases() as $rentalStatus)
-                <flux:select.option :value="$rentalStatus->value">{{ $rentalStatus->label() }}</flux:select.option>
+
+            @if($showFilters)
+            <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5 lg:items-end">
+                <flux:select wire:model.live="statusFilter" size="sm" :label="__('Stall Status')">
+                    <flux:select.option value="all">{{ __('All') }}</flux:select.option>
+                    @foreach(\App\Enums\RentalStatus::cases() as $rentalStatus)
+                    <flux:select.option :value="$rentalStatus->value">{{ $rentalStatus->label() }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:select wire:model.live="permitFilter" size="sm" :label="__('Permit Status')">
+                    <flux:select.option value="all">{{ __('All') }}</flux:select.option>
+                    @foreach(\App\Enums\PermitStatus::cases() as $permitStatus)
+                    <flux:select.option :value="$permitStatus->value">{{ $permitStatus->label() }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:select wire:model.live="assignmentFilter" size="sm" :label="__('Assignment')">
+                    <flux:select.option value="all">{{ __('All') }}</flux:select.option>
+                    <flux:select.option value="assigned">{{ __('Assigned') }}</flux:select.option>
+                    <flux:select.option value="unassigned">{{ __('Unassigned') }}</flux:select.option>
+                </flux:select>
+                <flux:select wire:model.live="sectionFilter" size="sm" :label="__('Section')">
+                    <flux:select.option value="all">{{ __('All') }}</flux:select.option>
+                    @foreach($this->sections as $section)
+                    <flux:select.option :value="$section">{{ $section }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:button size="sm" variant="ghost" wire:click="clearFilters">{{ __('Clear filters') }}</flux:button>
+            </div>
+            @endif
+
+            @if(count($this->activeFilters))
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+                @foreach($this->activeFilters as $chip => $property)
+                <button type="button" wire:click="$set('{{ $property }}', 'all')" wire:key="chip-{{ $property }}" class="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700 hover:bg-orange-100 dark:border-orange-700/60 dark:bg-orange-900/30 dark:text-orange-300">
+                    {{ $chip }} <span aria-hidden="true">×</span>
+                </button>
                 @endforeach
-            </flux:select>
+                <flux:text class="text-xs">{{ trans_choice(':count vendor|:count vendors', $this->vendors->total()) }}</flux:text>
+            </div>
+            @endif
         </div>
 
         {{-- Vendors Table --}}

@@ -14,6 +14,11 @@ new class extends Component {
 
     public string $search = '';
     public string $sectionFilter = 'all';
+    public string $statusFilter = 'all';
+    public string $sizeFilter = 'all';
+    public string $assignmentFilter = 'all';
+    public string $rateFilter = 'all';
+    public bool $showFilters = false;
 
     // Create/Edit form
     public bool $showModal = false;
@@ -46,9 +51,72 @@ new class extends Component {
         $this->resetPage();
     }
 
-    public function updatedSectionFilter(): void
+    /**
+     * The stall details page links back here with ?edit={id} to reuse this edit modal.
+     */
+    public function mount(): void
     {
+        if ($stallId = request()->integer('edit')) {
+            $this->openEditModal($stallId);
+        }
+    }
+
+    public function updated(string $property): void
+    {
+        if (in_array($property, ['sectionFilter', 'statusFilter', 'sizeFilter', 'assignmentFilter', 'rateFilter'], true)) {
+            $this->resetPage();
+            unset($this->stalls);
+        }
+    }
+
+    public function clearFilters(): void
+    {
+        $this->reset('sectionFilter', 'statusFilter', 'sizeFilter', 'assignmentFilter', 'rateFilter');
         $this->resetPage();
+        unset($this->stalls);
+    }
+
+    /**
+     * The filters currently narrowing the directory, as chip label => property.
+     */
+    #[Computed]
+    public function activeFilters(): array
+    {
+        $chips = [];
+
+        if ($this->sectionFilter !== 'all') {
+            $chips[__('Section: :v', ['v' => $this->sectionFilter])] = 'sectionFilter';
+        }
+        if ($this->statusFilter !== 'all') {
+            $chips[__('Status: :v', ['v' => StallStatus::tryFrom($this->statusFilter)?->label() ?? $this->statusFilter])] = 'statusFilter';
+        }
+        if ($this->sizeFilter !== 'all') {
+            $chips[__('Size: :v', ['v' => $this->sizeFilter])] = 'sizeFilter';
+        }
+        if ($this->assignmentFilter !== 'all') {
+            $chips[__('Assignment: :v', ['v' => ucfirst($this->assignmentFilter)])] = 'assignmentFilter';
+        }
+        if ($this->rateFilter !== 'all') {
+            $chips[__('Rate: ₱:v', ['v' => number_format((float) $this->rateFilter, 0)])] = 'rateFilter';
+        }
+
+        return $chips;
+    }
+
+    #[Computed]
+    public function sizes(): array
+    {
+        return Stall::where('market_id', $this->marketId)->distinct()->orderBy('size')->pluck('size')->all();
+    }
+
+    #[Computed]
+    public function rates(): array
+    {
+        return Stall::where('market_id', $this->marketId)->distinct()->orderBy('monthly_rate')->pluck('monthly_rate')
+            ->map(fn ($rate) => (string) (float) $rate)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function updatedFormVendorId(): void
@@ -88,6 +156,11 @@ new class extends Component {
                    ->orWhereHas('vendor', fn ($q3) => $q3->where('contact_name', 'like', '%' . $this->search . '%'))
             ))
             ->when($this->sectionFilter !== 'all', fn ($q) => $q->where('section', $this->sectionFilter))
+            ->when($this->statusFilter !== 'all', fn ($q) => $q->where('status', $this->statusFilter))
+            ->when($this->sizeFilter !== 'all', fn ($q) => $q->where('size', $this->sizeFilter))
+            ->when($this->assignmentFilter === 'assigned', fn ($q) => $q->whereNotNull('vendor_id'))
+            ->when($this->assignmentFilter === 'unassigned', fn ($q) => $q->whereNull('vendor_id'))
+            ->when($this->rateFilter !== 'all', fn ($q) => $q->where('monthly_rate', (float) $this->rateFilter))
             ->orderBy('section')
             ->orderBy('stall_number')
             ->paginate(15);
@@ -312,7 +385,7 @@ new class extends Component {
 
     private function clearCache(): void
     {
-        unset($this->stalls, $this->stallMap, $this->totalStalls, $this->occupiedCount, $this->availableCount, $this->maintenanceCount, $this->availableVendors, $this->sections);
+        unset($this->stalls, $this->stallMap, $this->totalStalls, $this->occupiedCount, $this->availableCount, $this->maintenanceCount, $this->availableVendors, $this->sections, $this->sizes, $this->rates);
     }
 
     public function generateSampleMap(): void
@@ -562,6 +635,14 @@ new class extends Component {
                                 class="absolute left-0 top-full z-50 mt-1 min-w-[170px] rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
                             >
                                 <p class="border-b border-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">{{ $stall['no'] }}</p>
+                                <a
+                                    href="{{ route('stalls.show', $stall['id']) }}"
+                                    wire:navigate
+                                    class="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-700/50"
+                                >
+                                    <svg class="size-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    {{ __('View details') }}
+                                </a>
                                 <button
                                     @click="open = false"
                                     wire:click="openEditModal({{ $stall['id'] }})"
@@ -771,14 +852,57 @@ new class extends Component {
                             {{ __('Loading...') }}
                         </div>
                         <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" size="sm" placeholder="{{ __('Search stalls...') }}" />
-                        <flux:select wire:model.live="sectionFilter" size="sm" class="w-32">
-                            <flux:select.option value="all">{{ __('All') }}</flux:select.option>
-                            @foreach($this->sections as $sec)
-                            <flux:select.option :value="$sec">{{ __('Section :s', ['s' => $sec]) }}</flux:select.option>
-                            @endforeach
-                        </flux:select>
+                        <flux:button size="sm" icon="funnel" wire:click="$toggle('showFilters')" :variant="$showFilters || count($this->activeFilters) ? 'primary' : 'outline'">
+                            {{ __('Filters') }}@if(count($this->activeFilters)) ({{ count($this->activeFilters) }})@endif
+                        </flux:button>
                     </div>
                 </div>
+
+                @if($showFilters)
+                <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 lg:items-end">
+                    <flux:select wire:model.live="sectionFilter" size="sm" :label="__('Section')">
+                        <flux:select.option value="all">{{ __('All') }}</flux:select.option>
+                        @foreach($this->sections as $sec)
+                        <flux:select.option :value="$sec">{{ $sec }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:select wire:model.live="statusFilter" size="sm" :label="__('Status')">
+                        <flux:select.option value="all">{{ __('All') }}</flux:select.option>
+                        @foreach(\App\Enums\StallStatus::cases() as $case)
+                        <flux:select.option :value="$case->value">{{ $case->label() }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:select wire:model.live="sizeFilter" size="sm" :label="__('Size')">
+                        <flux:select.option value="all">{{ __('All') }}</flux:select.option>
+                        @foreach($this->sizes as $size)
+                        <flux:select.option :value="$size">{{ $size }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:select wire:model.live="assignmentFilter" size="sm" :label="__('Assignment')">
+                        <flux:select.option value="all">{{ __('All') }}</flux:select.option>
+                        <flux:select.option value="assigned">{{ __('Assigned') }}</flux:select.option>
+                        <flux:select.option value="unassigned">{{ __('Unassigned') }}</flux:select.option>
+                    </flux:select>
+                    <flux:select wire:model.live="rateFilter" size="sm" :label="__('Rate')">
+                        <flux:select.option value="all">{{ __('All') }}</flux:select.option>
+                        @foreach($this->rates as $rate)
+                        <flux:select.option :value="$rate">₱{{ number_format((float) $rate, 0) }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:button size="sm" variant="ghost" wire:click="clearFilters">{{ __('Clear filters') }}</flux:button>
+                </div>
+                @endif
+
+                @if(count($this->activeFilters))
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    @foreach($this->activeFilters as $chip => $property)
+                    <button type="button" wire:click="$set('{{ $property }}', 'all')" wire:key="chip-{{ $property }}" class="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-700 hover:bg-orange-100 dark:border-orange-700/60 dark:bg-orange-900/30 dark:text-orange-300">
+                        {{ $chip }} <span aria-hidden="true">×</span>
+                    </button>
+                    @endforeach
+                    <flux:text class="text-xs">{{ trans_choice(':count stall|:count stalls', $this->stalls->total()) }}</flux:text>
+                </div>
+                @endif
             </div>
             <div class="relative overflow-x-auto">
                 <div wire:loading.flex class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center bg-white/60 dark:bg-zinc-900/60">
@@ -805,7 +929,9 @@ new class extends Component {
                     <tbody class="divide-y divide-orange-100 dark:divide-zinc-700">
                         @forelse($this->stalls as $stall)
                         <tr class="hover:bg-orange-50/50 dark:hover:bg-zinc-800/50" wire:key="stall-{{ $stall->id }}">
-                            <td class="px-6 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ $stall->stall_number }}</td>
+                            <td class="px-6 py-3 font-medium text-zinc-900 dark:text-zinc-100">
+                                <a href="{{ route('stalls.show', $stall) }}" wire:navigate class="hover:text-orange-600 hover:underline dark:hover:text-orange-400">{{ $stall->stall_number }}</a>
+                            </td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ __('Section :s', ['s' => $stall->section]) }}</td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $stall->size }}</td>
                             <td class="px-6 py-3">
@@ -817,6 +943,7 @@ new class extends Component {
                                 <flux:dropdown>
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
                                     <flux:menu>
+                                        <flux:menu.item icon="eye" :href="route('stalls.show', $stall)" wire:navigate>{{ __('View') }}</flux:menu.item>
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $stall->id }})" wire:loading.attr="disabled" wire:target="openEditModal">
                                             <span wire:loading.remove wire:target="openEditModal">{{ __('Edit') }}</span>
                                             <span wire:loading wire:target="openEditModal" class="inline-flex items-center gap-1.5">
@@ -827,6 +954,9 @@ new class extends Component {
                                                 {{ __('Opening...') }}
                                             </span>
                                         </flux:menu.item>
+                                        @if($stall->vendor_id)
+                                        <flux:menu.item icon="user-minus" x-on:click="$dispatch('open-confirm', { title: 'Unassign Vendor', message: 'Remove {{ addslashes($stall->vendor?->contact_name ?? '') }} from stall {{ $stall->stall_number }}?', confirm: 'Unassign', variant: 'warning', onConfirm: () => $wire.unassignVendor({{ $stall->id }}) })">{{ __('Unassign') }}</flux:menu.item>
+                                        @endif
                                         <flux:menu.separator />
                                         <flux:menu.item icon="trash" variant="danger" x-on:click="$dispatch('open-confirm', { title: 'Delete Stall', message: 'Are you sure you want to delete stall {{ $stall->stall_number }}? This cannot be undone.', confirm: 'Delete', variant: 'danger', onConfirm: () => $wire.deleteStall({{ $stall->id }}) })">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>

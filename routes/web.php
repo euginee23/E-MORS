@@ -42,6 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::middleware('role:admin')->group(function () {
             Route::livewire('vendors', 'pages::vendors.index')->name('vendors.index');
             Route::livewire('stalls', 'pages::stalls.index')->name('stalls.index');
+            Route::livewire('stalls/{stall}', 'pages::stalls.show')->name('stalls.show');
             Route::livewire('collections', 'pages::collections.index')->name('collections.index');
             Route::livewire('collectors', 'pages::collectors.index')->name('collectors.index');
             Route::livewire('reports', 'pages::reports.index')->name('reports.index');

@@ -89,6 +89,11 @@ class Vendor extends Model
         return (float) $this->stalls->sum('monthly_rate');
     }
 
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(StallAssignment::class);
+    }
+
     public function collections(): HasMany
     {
         return $this->hasMany(Collection::class);

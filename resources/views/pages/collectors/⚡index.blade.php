@@ -4,6 +4,7 @@ use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Models\Collection;
 use App\Models\User;
+use App\Support\DateRange;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -14,8 +15,25 @@ use Livewire\WithPagination;
 new class extends Component {
     use WithPagination;
 
+    /** Period presets for the detail modal, keyed by DateRange period. */
+    public const PERIODS = [
+        'all' => 'All',
+        'today' => 'Daily',
+        'week' => 'Weekly',
+        'month' => 'Monthly',
+        'year' => 'Yearly',
+        'custom' => 'Custom',
+    ];
+
     public string $search = '';
+
+    // Detail modal date filter
     public string $periodFilter = 'all';
+    public ?string $detailFrom = null;
+    public ?string $detailTo = null;
+
+    /** Listing cap for the modal — enough to scroll a busy month without dumping a collector's whole history. */
+    private const DETAIL_LIMIT = 50;
 
     // Create/Edit form
     public bool $showModal = false;
@@ -36,9 +54,42 @@ new class extends Component {
         $this->resetPage();
     }
 
+    /** A preset fills From/To with the window it covers, so the inputs always match the figures. */
     public function updatedPeriodFilter(): void
     {
-        $this->resetPage();
+        if ($this->periodFilter !== 'custom') {
+            $range = DateRange::resolve($this->periodFilter);
+            $this->detailFrom = $range?->start->toDateString();
+            $this->detailTo = $range?->end->toDateString();
+        }
+
+        $this->clearDetailCache();
+    }
+
+    public function updatedDetailFrom(): void
+    {
+        $this->periodFilter = 'custom';
+        $this->validateOnly('detailFrom', ['detailFrom' => ['nullable', 'date']]);
+        $this->clearDetailCache();
+    }
+
+    public function updatedDetailTo(): void
+    {
+        $this->periodFilter = 'custom';
+        $this->validateOnly('detailTo', ['detailTo' => ['nullable', 'date']]);
+        $this->clearDetailCache();
+    }
+
+    private function clearDetailCache(): void
+    {
+        unset($this->detailRange, $this->collectorRecentCollections, $this->collectorRangeStats);
+    }
+
+    /** Null while "All" is selected — the modal then covers every collection. */
+    #[Computed]
+    public function detailRange(): ?DateRange
+    {
+        return DateRange::resolve($this->periodFilter, $this->detailFrom, $this->detailTo);
     }
 
     #[Computed]
@@ -124,6 +175,12 @@ new class extends Component {
         $this->viewingCollector = User::where('market_id', $this->marketId)
             ->where('role', UserRole::Collector)
             ->findOrFail($collectorId);
+        $this->periodFilter = 'all';
+        $this->detailFrom = null;
+        $this->detailTo = null;
+        $this->resetValidation();
+        $this->clearDetailCache();
+        unset($this->collectorStats);
         $this->showDetailModal = true;
     }
 
@@ -137,9 +194,29 @@ new class extends Component {
         return Collection::where('market_id', $this->marketId)
             ->where('collector_id', $this->viewingCollector->id)
             ->with(['vendor', 'stall'])
+            ->when($this->detailRange, fn ($q) => $this->detailRange->applyTo($q))
             ->orderByDesc('payment_date')
-            ->limit(15)
+            ->orderByDesc('id')
+            ->limit(self::DETAIL_LIMIT)
             ->get();
+    }
+
+    /** Totals for whatever window the modal's date filter describes. */
+    #[Computed]
+    public function collectorRangeStats(): array
+    {
+        if (! $this->viewingCollector) {
+            return ['amount' => 0.0, 'count' => 0];
+        }
+
+        $query = Collection::where('market_id', $this->marketId)
+            ->where('collector_id', $this->viewingCollector->id)
+            ->when($this->detailRange, fn ($q) => $this->detailRange->applyTo($q));
+
+        return [
+            'amount' => (float) $query->clone()->where('status', PaymentStatus::Paid)->sum('amount'),
+            'count' => (int) $query->clone()->count(),
+        ];
     }
 
     #[Computed]
@@ -449,7 +526,7 @@ new class extends Component {
 
             {{-- Collector Stats --}}
             @php $stats = $this->collectorStats; @endphp
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div class="rounded-xl border border-orange-100 bg-orange-50/50 p-3 dark:border-zinc-700 dark:bg-zinc-800/50">
                     <flux:text class="text-xs text-zinc-500">{{ __('Today') }}</flux:text>
                     <div class="mt-0.5 font-bold text-zinc-900 dark:text-zinc-100">{{ $stats['todayAmount'] ?? '₱ 0' }}</div>
@@ -463,15 +540,49 @@ new class extends Component {
                     <flux:text class="text-xs text-zinc-500">{{ __('This Month') }}</flux:text>
                     <div class="mt-0.5 font-bold text-zinc-900 dark:text-zinc-100">{{ $stats['monthAmount'] ?? '₱ 0' }}</div>
                 </div>
+                <div class="rounded-xl border border-orange-300 bg-orange-100/60 p-3 dark:border-orange-700/60 dark:bg-orange-900/20">
+                    <flux:text class="text-xs text-zinc-500">{{ $this->detailRange?->label ?? __('All Time') }}</flux:text>
+                    <div class="mt-0.5 font-bold text-zinc-900 dark:text-zinc-100">₱ {{ number_format($this->collectorRangeStats['amount'], 0) }}</div>
+                    <flux:text class="text-xs text-zinc-400">{{ trans_choice(':count transaction|:count transactions', $this->collectorRangeStats['count']) }}</flux:text>
+                </div>
             </div>
 
-            {{-- Recent Collections --}}
+            {{-- Date filter --}}
+            <div class="flex flex-col gap-3 rounded-xl border border-orange-100 p-3 dark:border-zinc-700">
+                <div class="inline-flex flex-wrap gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800">
+                    @foreach($this::PERIODS as $key => $label)
+                    <button type="button" wire:click="$set('periodFilter', '{{ $key }}')" wire:key="detail-period-{{ $key }}"
+                        @class([
+                            'rounded-md px-2.5 py-1 text-xs font-semibold transition',
+                            'bg-orange-500 text-white shadow-sm' => $periodFilter === $key,
+                            'text-zinc-600 hover:bg-white dark:text-zinc-300 dark:hover:bg-zinc-700' => $periodFilter !== $key,
+                        ])>
+                        {{ __($label) }}
+                    </button>
+                    @endforeach
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <flux:input wire:model.live="detailFrom" type="date" size="sm" :label="__('From')" max="{{ $detailTo }}" />
+                    <flux:input wire:model.live="detailTo" type="date" size="sm" :label="__('To')" min="{{ $detailFrom }}" />
+                </div>
+            </div>
+
+            {{-- Collections in range --}}
             <div>
-                <flux:heading size="sm" class="mb-3">{{ __('Recent Collections') }}</flux:heading>
-                <div class="rounded-xl border border-orange-100 dark:border-zinc-700 overflow-hidden">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                    <flux:heading size="sm">{{ $periodFilter === 'all' ? __('Recent Collections') : __('Collections') }}</flux:heading>
+                    <flux:text class="text-xs">
+                        @if($this->collectorRangeStats['count'] > $this->collectorRecentCollections->count())
+                        {{ __('Showing latest :shown of :total', ['shown' => $this->collectorRecentCollections->count(), 'total' => $this->collectorRangeStats['count']]) }}
+                        @else
+                        {{ trans_choice('Showing :count collection|Showing :count collections', $this->collectorRecentCollections->count()) }}
+                        @endif
+                    </flux:text>
+                </div>
+                <div class="max-h-80 overflow-y-auto rounded-xl border border-orange-100 dark:border-zinc-700">
                     <table class="w-full text-sm">
-                        <thead>
-                            <tr class="border-b border-orange-100 bg-orange-50/50 dark:border-zinc-700 dark:bg-zinc-800/50">
+                        <thead class="sticky top-0">
+                            <tr class="border-b border-orange-100 bg-orange-50 dark:border-zinc-700 dark:bg-zinc-800">
                                 <th class="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{{ __('Date') }}</th>
                                 <th class="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{{ __('Vendor') }}</th>
                                 <th class="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stall') }}</th>
@@ -482,7 +593,7 @@ new class extends Component {
                         <tbody class="divide-y divide-orange-100 dark:divide-zinc-700">
                             @forelse($this->collectorRecentCollections as $collection)
                             <tr class="hover:bg-orange-50/50 dark:hover:bg-zinc-800/50">
-                                <td class="px-4 py-2 text-zinc-700 dark:text-zinc-300">{{ $collection->payment_date->format('M j') }}</td>
+                                <td class="px-4 py-2 text-zinc-700 dark:text-zinc-300">{{ $collection->payment_date->format('M j, Y') }}</td>
                                 <td class="px-4 py-2 text-zinc-700 dark:text-zinc-300">{{ $collection->vendor?->contact_name ?? '—' }}</td>
                                 <td class="px-4 py-2 text-zinc-700 dark:text-zinc-300">{{ $collection->stall?->stall_number ?? '—' }}</td>
                                 <td class="px-4 py-2 font-medium text-zinc-900 dark:text-zinc-100">₱ {{ number_format($collection->amount, 0) }}</td>
@@ -492,7 +603,7 @@ new class extends Component {
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-6 text-center text-zinc-500">{{ __('No collections recorded yet.') }}</td>
+                                <td colspan="5" class="px-4 py-6 text-center text-zinc-500">{{ __('No collections in this period.') }}</td>
                             </tr>
                             @endforelse
                         </tbody>

@@ -54,6 +54,12 @@ new class extends Component {
     public string $deletingMarketName = '';
     public string $deleteConfirmationText = '';
 
+    // Stall and vendor details modal
+    public bool $showStallsModal = false;
+    public ?int $stallsMarketId = null;
+    public string $stallsSearch = '';
+    public string $stallsSection = 'all';
+
     public function updatedSearch(): void
     {
         $this->resetPage();
@@ -117,6 +123,70 @@ new class extends Component {
                 ->with(['market' => fn ($q) => $q->withCount(['stalls', 'vendors'])])
                 ->find($this->viewingAdminId)
             : null;
+    }
+
+    public function openStallsModal(int $adminId): void
+    {
+        $admin = User::where('role', UserRole::Admin)->findOrFail($adminId);
+
+        $this->stallsMarketId = $admin->market_id;
+        $this->stallsSearch = '';
+        $this->stallsSection = 'all';
+        unset($this->stallsMarket, $this->marketStalls, $this->marketStallStats, $this->marketSections);
+        $this->showStallsModal = true;
+    }
+
+    #[Computed]
+    public function stallsMarket(): ?Market
+    {
+        return $this->stallsMarketId ? Market::find($this->stallsMarketId) : null;
+    }
+
+    #[Computed]
+    public function marketStalls()
+    {
+        if (! $this->stallsMarketId) {
+            return collect();
+        }
+
+        $search = trim($this->stallsSearch);
+
+        return Stall::where('market_id', $this->stallsMarketId)
+            ->with('vendor')
+            ->when($this->stallsSection !== 'all', fn ($q) => $q->where('section', $this->stallsSection))
+            ->when($search !== '', fn ($q) => $q->where(fn ($q2) =>
+                $q2->where('stall_number', 'like', '%' . $search . '%')
+                   ->orWhereHas('vendor', fn ($v) => $v->where('contact_name', 'like', '%' . $search . '%')
+                       ->orWhere('business_name', 'like', '%' . $search . '%'))
+            ))
+            ->orderBy('section')
+            ->orderBy('stall_number')
+            ->get();
+    }
+
+    /**
+     * Market-wide totals for the modal header — unaffected by its search and section filter.
+     */
+    #[Computed]
+    public function marketStallStats(): array
+    {
+        if (! $this->stallsMarketId) {
+            return ['stalls' => 0, 'occupied' => 0, 'vendors' => 0];
+        }
+
+        return [
+            'stalls' => Stall::where('market_id', $this->stallsMarketId)->count(),
+            'occupied' => Stall::where('market_id', $this->stallsMarketId)->where('status', \App\Enums\StallStatus::Occupied)->count(),
+            'vendors' => Vendor::where('market_id', $this->stallsMarketId)->count(),
+        ];
+    }
+
+    #[Computed]
+    public function marketSections()
+    {
+        return $this->stallsMarketId
+            ? Stall::where('market_id', $this->stallsMarketId)->distinct()->orderBy('section')->pluck('section')
+            : collect();
     }
 
     public function openViewModal(int $adminId): void
@@ -491,7 +561,13 @@ new class extends Component {
                                 </div>
                             </td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $admin->market?->name ?? '—' }}</td>
-                            <td class="px-6 py-3 font-semibold text-zinc-900 dark:text-zinc-100">{{ $admin->market ? number_format($admin->market->stalls_count) : '—' }}</td>
+                            <td class="px-6 py-3 font-semibold text-zinc-900 dark:text-zinc-100">
+                                @if($admin->market)
+                                <button type="button" wire:click="openStallsModal({{ $admin->id }})" class="underline decoration-dotted underline-offset-4 hover:text-orange-600 dark:hover:text-orange-400">{{ number_format($admin->market->stalls_count) }}</button>
+                                @else
+                                —
+                                @endif
+                            </td>
                             <td class="px-6 py-3 font-semibold text-zinc-900 dark:text-zinc-100">{{ $admin->market ? number_format($admin->market->vendors_count) : '—' }}</td>
                             <td class="px-6 py-3">
                                 <flux:badge :color="$admin->status->color()" size="sm">{{ $admin->status->label() }}</flux:badge>
@@ -507,10 +583,17 @@ new class extends Component {
                             </td>
                             <td class="px-6 py-3 text-zinc-500 dark:text-zinc-400">{{ $admin->created_at->format('M j, Y') }}</td>
                             <td class="px-6 py-3">
+                                <div class="flex items-center gap-1">
+                                @if($admin->market)
+                                <flux:button size="xs" variant="outline" class="text-orange-600! dark:text-orange-400!" wire:click="openStallsModal({{ $admin->id }})">{{ __('View stalls') }}</flux:button>
+                                @endif
                                 <flux:dropdown>
                                     <flux:button variant="ghost" size="sm" icon="ellipsis-horizontal" />
                                     <flux:menu>
                                         <flux:menu.item icon="eye" wire:click="openViewModal({{ $admin->id }})">{{ __('View Details') }}</flux:menu.item>
+                                        @if($admin->market)
+                                        <flux:menu.item icon="building-storefront" wire:click="openStallsModal({{ $admin->id }})">{{ __('View Stalls') }}</flux:menu.item>
+                                        @endif
                                         <flux:menu.item icon="pencil-square" wire:click="openEditModal({{ $admin->id }})">{{ __('Edit') }}</flux:menu.item>
                                         @if($admin->status === \App\Enums\AdminStatus::Verified)
                                         <flux:menu.item icon="{{ $admin->is_active ? 'no-symbol' : 'check-circle' }}" x-on:click="$dispatch('open-confirm', { title: '{{ $admin->is_active ? 'Deactivate' : 'Activate' }} Admin', message: '{{ $admin->is_active ? 'Deactivate' : 'Activate' }} {{ $admin->name }}? {{ $admin->is_active ? 'They will be signed out and unable to log in.' : 'They will regain access to the system.' }}', confirm: '{{ $admin->is_active ? 'Deactivate' : 'Activate' }}', variant: '{{ $admin->is_active ? 'danger' : 'primary' }}', onConfirm: () => $wire.toggleActive({{ $admin->id }}) })">
@@ -526,6 +609,7 @@ new class extends Component {
                                         <flux:menu.item icon="trash" variant="danger" wire:click="openDeleteModal({{ $admin->id }})">{{ __('Delete') }}</flux:menu.item>
                                     </flux:menu>
                                 </flux:dropdown>
+                                </div>
                             </td>
                         </tr>
                         @empty
@@ -548,6 +632,91 @@ new class extends Component {
             </div>
         </div>
     </div>
+
+    {{-- Stall and Vendor Details Modal --}}
+    <flux:modal wire:model="showStallsModal" class="w-full max-w-3xl p-0! max-h-[90vh] overflow-hidden">
+        @if($this->stallsMarket)
+        @php($stats = $this->marketStallStats)
+        <div class="flex flex-col max-h-[90vh]">
+            <div class="p-6 pb-4 border-b border-zinc-100 dark:border-zinc-700">
+                <flux:heading size="lg">{{ __('Stall and Vendor Details') }}</flux:heading>
+                <flux:subheading class="mt-0.5">{{ $this->stallsMarket->name }}</flux:subheading>
+
+                <div class="mt-4 grid grid-cols-3 gap-3">
+                    <div class="rounded-xl border border-zinc-100 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
+                        <p class="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{{ number_format($stats['stalls']) }}</p>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Stalls') }}</p>
+                    </div>
+                    <div class="rounded-xl border border-zinc-100 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
+                        <p class="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{{ number_format($stats['occupied']) }}</p>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Occupied') }}</p>
+                    </div>
+                    <div class="rounded-xl border border-zinc-100 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3">
+                        <p class="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{{ number_format($stats['vendors']) }}</p>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('Vendors') }}</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <flux:input wire:model.live.debounce.300ms="stallsSearch" icon="magnifying-glass" size="sm" :placeholder="__('Search stall or vendor...')" class="sm:max-w-xs" />
+                    <div class="flex flex-wrap gap-1.5 sm:ml-auto">
+                        @foreach(collect(['all'])->merge($this->marketSections) as $section)
+                        <button type="button" wire:click="$set('stallsSection', '{{ $section }}')" wire:key="stalls-section-{{ $section }}"
+                            @class([
+                                'rounded-md px-2.5 py-1 text-xs font-semibold transition',
+                                'bg-orange-500 text-white' => $stallsSection === $section,
+                                'text-zinc-600 hover:bg-orange-50 dark:text-zinc-300 dark:hover:bg-zinc-800' => $stallsSection !== $section,
+                            ])>
+                            {{ $section === 'all' ? __('All') : $section }}
+                        </button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-6 py-2">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-white dark:bg-zinc-900">
+                        <tr class="border-b border-zinc-100 text-left dark:border-zinc-700">
+                            <th class="py-2 pr-4 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Stall') }}</th>
+                            <th class="py-2 pr-4 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Section') }}</th>
+                            <th class="py-2 pr-4 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Status') }}</th>
+                            <th class="py-2 font-medium text-zinc-500 dark:text-zinc-400">{{ __('Vendor') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                        @forelse($this->marketStalls as $stall)
+                        <tr wire:key="market-stall-{{ $stall->id }}">
+                            <td class="py-2 pr-4 font-medium text-zinc-900 dark:text-zinc-100">{{ $stall->stall_number }}</td>
+                            <td class="py-2 pr-4 text-zinc-600 dark:text-zinc-300">{{ $stall->section }}</td>
+                            <td class="py-2 pr-4"><flux:badge :color="$stall->status->color()" size="sm">{{ $stall->status->label() }}</flux:badge></td>
+                            <td class="py-2 text-zinc-700 dark:text-zinc-300">
+                                @if($stall->vendor)
+                                <div class="font-medium">{{ $stall->vendor->contact_name }}</div>
+                                @if($stall->vendor->business_name)
+                                <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ $stall->vendor->business_name }}</div>
+                                @endif
+                                @else
+                                <span class="text-zinc-400">—</span>
+                                @endif
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="4" class="py-10 text-center text-sm text-zinc-400">{{ __('No stalls match.') }}</td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex items-center justify-between gap-3 border-t border-zinc-100 px-6 py-3 dark:border-zinc-700">
+                <flux:text class="text-xs">{{ trans_choice(':count stall shown|:count stalls shown', $this->marketStalls->count()) }}</flux:text>
+                <flux:button size="sm" variant="ghost" wire:click="$set('showStallsModal', false)">{{ __('Close') }}</flux:button>
+            </div>
+        </div>
+        @endif
+    </flux:modal>
 
     {{-- View Details Modal --}}
     <flux:modal wire:model="showViewModal" class="w-full max-w-3xl p-0! max-h-[90vh] overflow-hidden">

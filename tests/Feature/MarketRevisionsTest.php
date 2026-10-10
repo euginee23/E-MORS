@@ -863,11 +863,13 @@ class MarketRevisionsTest extends TestCase
 
         $component->assertSee('Maria Santos')->assertSee('Juan Cruz');
 
-        // Collect from Maria, then confirm she leaves the list for the next collector.
-        $component->set('formVendorId', $this->vendor->id)
-            ->set('formStallId', $this->vendor->stalls->first()->id)
-            ->call('save')
-            ->assertHasNoErrors();
+        // Collect from every one of Maria's stalls, then confirm she leaves the list.
+        foreach ($this->vendor->stalls as $stall) {
+            $component->set('formVendorId', $this->vendor->id)
+                ->set('formStallId', $stall->id)
+                ->call('save')
+                ->assertHasNoErrors();
+        }
 
         $fresh = \Livewire\Livewire::actingAs($this->collector())
             ->test('pages::collector.collect');
@@ -882,20 +884,53 @@ class MarketRevisionsTest extends TestCase
             ->assertSee('PAID');
     }
 
-    public function test_hiding_collected_vendors_again_clears_a_stale_selection(): void
+    public function test_a_vendor_with_unpaid_stalls_stays_in_the_picker(): void
     {
-        \Illuminate\Support\Facades\Mail::fake();
+        $paid = $this->vendor->stalls->firstWhere('stall_number', 'A-02');
 
         Collection::create([
             'market_id' => $this->market->id,
             'vendor_id' => $this->vendor->id,
-            'stall_id' => $this->vendor->stalls->first()->id,
-            'receipt_number' => 'RCP-STALE-0001',
+            'stall_id' => $paid->id,
+            'receipt_number' => 'RCP-PART-0001',
             'amount' => 3000,
             'payment_date' => now(),
             'payment_method' => 'cash',
             'status' => PaymentStatus::Paid,
         ]);
+
+        $component = \Livewire\Livewire::actingAs($this->collector())
+            ->test('pages::collector.collect');
+
+        // One of three stalls paid: Maria stays selectable and is not counted as collected.
+        $component->assertSee('Maria Santos')
+            ->assertSee('1 of 3 paid')
+            ->assertDontSee('already collected today');
+
+        $this->assertSame([$paid->id], $component->instance()->paidTodayStallIds->all());
+        $this->assertTrue($component->instance()->collectedTodayVendorIds->isEmpty());
+
+        // Only the paid stall is flagged in the stall picker.
+        $component->set('formVendorId', $this->vendor->id)
+            ->assertSeeInOrder(['A-02', 'PAID', 'A-03']);
+    }
+
+    public function test_hiding_collected_vendors_again_clears_a_stale_selection(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+
+        foreach ($this->vendor->stalls as $i => $stall) {
+            Collection::create([
+                'market_id' => $this->market->id,
+                'vendor_id' => $this->vendor->id,
+                'stall_id' => $stall->id,
+                'receipt_number' => 'RCP-STALE-000'.$i,
+                'amount' => 3000,
+                'payment_date' => now(),
+                'payment_method' => 'cash',
+                'status' => PaymentStatus::Paid,
+            ]);
+        }
 
         \Livewire\Livewire::actingAs($this->collector())
             ->test('pages::collector.collect')

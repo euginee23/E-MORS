@@ -83,16 +83,32 @@ new class extends Component {
     }
 
     /**
-     * Vendor ids with a paid collection recorded today, by any collector.
+     * Stall ids with a paid collection recorded today, by any collector.
      */
     #[Computed]
-    public function collectedTodayVendorIds(): \Illuminate\Support\Collection
+    public function paidTodayStallIds(): \Illuminate\Support\Collection
     {
         return Collection::where('market_id', $this->marketId)
             ->where('status', PaymentStatus::Paid)
             ->whereDate('payment_date', today())
-            ->pluck('vendor_id')
+            ->whereNotNull('stall_id')
+            ->pluck('stall_id')
             ->unique()
+            ->values();
+    }
+
+    /**
+     * Vendor ids whose every stall has been paid today. A vendor who has paid for
+     * only some of their stalls stays in the picker until the rest are collected.
+     */
+    #[Computed]
+    public function collectedTodayVendorIds(): \Illuminate\Support\Collection
+    {
+        $paid = $this->paidTodayStallIds;
+
+        return $this->vendorsWithStalls
+            ->filter(fn ($vendor) => $vendor->stalls->every(fn ($stall) => $paid->contains($stall->id)))
+            ->pluck('id')
             ->values();
     }
 
@@ -351,6 +367,7 @@ new class extends Component {
             $this->todayCount,
             $this->progressPercent,
             $this->recentCollections,
+            $this->paidTodayStallIds,
             $this->collectedTodayVendorIds,
             $this->collectedTodayCount,
             $this->selectableVendors,
@@ -481,7 +498,10 @@ new class extends Component {
                                 <flux:select wire:model.live="formVendorId" :label="__('Select a Vendor')" required>
                                     <flux:select.option :value="null">{{ __('— Select Vendor —') }}</flux:select.option>
                                     @foreach($this->selectableVendors as $vendor)
-                                    @php $paidToday = $this->collectedTodayVendorIds->contains($vendor->id); @endphp
+                                    @php
+                                        $paidToday = $this->collectedTodayVendorIds->contains($vendor->id);
+                                        $paidStallCount = $vendor->stalls->whereIn('id', $this->paidTodayStallIds)->count();
+                                    @endphp
                                     <flux:select.option :value="$vendor->id">
                                         {{ $vendor->contact_name }}
                                         @if($vendor->stalls_count > 1)
@@ -489,7 +509,11 @@ new class extends Component {
                                         @else
                                             — {{ $vendor->stalls->first()?->stall_number }}
                                         @endif
-                                        @if($paidToday) · {{ __('PAID') }} @endif
+                                        @if($paidToday)
+                                            · {{ __('PAID') }}
+                                        @elseif($paidStallCount > 0)
+                                            · {{ __(':paid of :total paid', ['paid' => $paidStallCount, 'total' => $vendor->stalls_count]) }}
+                                        @endif
                                     </flux:select.option>
                                     @endforeach
                                 </flux:select>
@@ -521,6 +545,7 @@ new class extends Component {
                                     @foreach($this->vendorStalls as $vendorStall)
                                     <flux:select.option :value="$vendorStall->id">
                                         {{ $vendorStall->stall_number }} — {{ $vendorStall->section }} (₱{{ number_format($vendorStall->monthly_rate, 2) }}/mo)
+                                        @if($this->paidTodayStallIds->contains($vendorStall->id)) · {{ __('PAID') }} @endif
                                     </flux:select.option>
                                     @endforeach
                                 </flux:select>

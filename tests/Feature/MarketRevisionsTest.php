@@ -456,6 +456,14 @@ class MarketRevisionsTest extends TestCase
         }
     }
 
+    public function test_vendor_list_labels_each_stall_status_separately(): void
+    {
+        // An expired stall must not hide the vendor's other stalls behind a single "Expired" badge.
+        \Livewire\Livewire::actingAs($this->admin())
+            ->test('pages::vendors.index')
+            ->assertSeeInOrder(['A-01: Expired', 'A-02: Expiring Soon', 'A-03: Active']);
+    }
+
     public function test_unassigning_a_vendor_clears_the_rental_term(): void
     {
         $stall = $this->vendor->stalls->first();

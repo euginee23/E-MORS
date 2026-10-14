@@ -108,7 +108,7 @@ new class extends Component {
     public function vendors()
     {
         return Vendor::where('market_id', $this->marketId)
-            ->with(['stall', 'stalls', 'user'])
+            ->with(['stall', 'stalls' => fn ($q) => $q->orderBy('stall_number'), 'user'])
             ->when($this->search, fn ($q) => $q->where(fn ($q2) =>
                 $q2->where('business_name', 'like', '%' . $this->search . '%')
                    ->orWhere('contact_name', 'like', '%' . $this->search . '%')
@@ -522,10 +522,7 @@ new class extends Component {
                                 </div>
                             </td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $vendor->business_name }}</td>
-                            @php
-                                $rentalStatus = $vendor->stallRentalStatus();
-                                $rentExpiry = $vendor->soonestRentExpiry();
-                            @endphp
+                            @php $rentExpiry = $vendor->soonestRentExpiry(); @endphp
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">
                                 @if($vendor->stalls->isEmpty())
                                     —
@@ -534,7 +531,16 @@ new class extends Component {
                                 @endif
                             </td>
                             <td class="px-6 py-3">
-                                <flux:badge :color="$rentalStatus->color()" size="sm">{{ $rentalStatus->label() }}</flux:badge>
+                                {{-- One badge per stall, so an expired stall doesn't mask the vendor's other active rentals --}}
+                                @if($vendor->stalls->isEmpty())
+                                    <flux:badge :color="\App\Enums\RentalStatus::Unassigned->color()" size="sm">{{ \App\Enums\RentalStatus::Unassigned->label() }}</flux:badge>
+                                @else
+                                    <div class="flex flex-col items-start gap-1">
+                                        @foreach($vendor->stalls as $rentedStall)
+                                        <flux:badge :color="$rentedStall->rental_status->color()" size="sm">{{ $rentedStall->stall_number }}: {{ $rentedStall->rental_status->label() }}</flux:badge>
+                                        @endforeach
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $rentExpiry?->format('M j, Y') ?? '—' }}</td>
                             <td class="px-6 py-3 text-zinc-700 dark:text-zinc-300">{{ $vendor->permit_expiry?->format('M j, Y') ?? '—' }}</td>

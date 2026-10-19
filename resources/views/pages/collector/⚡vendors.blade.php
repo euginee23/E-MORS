@@ -226,7 +226,7 @@ new class extends Component {
                             <td class="px-6 py-3">
                                 <div class="flex items-center gap-3">
                                     <div class="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-400 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <span class="text-white font-bold text-[10px]">{{ collect(explode(' ', $vendor->contact_name))->map(fn($w) => $w[0])->implode('') }}</span>
+                                        <span class="text-white font-bold text-[10px]">{{ $vendor->initials() }}</span>
                                     </div>
                                     <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ $vendor->contact_name }}</span>
                                 </div>

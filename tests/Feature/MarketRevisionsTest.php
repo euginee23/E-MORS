@@ -307,6 +307,23 @@ class MarketRevisionsTest extends TestCase
             ->assertSee('9,000');
     }
 
+    public function test_collector_vendors_page_handles_stray_spaces_in_contact_name(): void
+    {
+        $collector = User::factory()->create([
+            'role' => UserRole::Collector,
+            'market_id' => $this->market->id,
+            'status' => AdminStatus::Verified,
+        ]);
+
+        // A trailing/double space used to make the initials code index an empty word and 500.
+        $this->vendor->update(['contact_name' => 'Abdula,  Kimberly ']);
+
+        $this->actingAs($collector)
+            ->get(route('collector.vendors'))
+            ->assertOk()
+            ->assertSee('AK');
+    }
+
     public function test_vendors_table_does_not_n_plus_one_on_stalls(): void
     {
         // Several vendors, each with stalls, to expose per-row lazy loading.

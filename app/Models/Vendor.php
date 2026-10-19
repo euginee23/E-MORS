@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Vendor extends Model
 {
@@ -35,6 +36,19 @@ class Vendor extends Model
             'permit_status' => PermitStatus::class,
             'permit_expiry' => 'date',
         ];
+    }
+
+    /**
+     * Initials from the contact name. Squished first so stray spaces
+     * (e.g. "Abdula, Kimberly ") don't produce empty words.
+     */
+    public function initials(): string
+    {
+        return Str::of($this->contact_name)
+            ->squish()
+            ->explode(' ')
+            ->map(fn ($word) => Str::substr($word, 0, 1))
+            ->implode('');
     }
 
     public function market(): BelongsTo

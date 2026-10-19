@@ -189,7 +189,7 @@ new class extends Component {
                     @if($this->marketAdmin)
                     <div class="flex items-center gap-3">
                         <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-md">
-                            <span class="text-white font-bold text-sm">{{ collect(explode(' ', $this->marketAdmin->name))->map(fn($w) => $w[0])->take(2)->implode('') }}</span>
+                            <span class="text-white font-bold text-sm">{{ $this->marketAdmin->initials() }}</span>
                         </div>
                         <div>
                             <p class="font-semibold text-zinc-900 dark:text-zinc-100">{{ $this->marketAdmin->name }}</p>

@@ -101,3 +101,38 @@ test('a collector cannot print a receipt from another market', function () {
         ->get(route('collector.receipts.print', $collection))
         ->assertNotFound();
 });
+
+test('a second market can record its first collection even when another market already used the same receipt number', function () {
+    recordPayment('cash')->assertHasNoErrors();
+
+    $otherMarket = Market::create(['name' => 'Tiguma Market', 'address' => 'Tiguma Road']);
+    $otherCollector = User::factory()->create(['role' => UserRole::Collector, 'market_id' => $otherMarket->id]);
+    $otherVendor = Vendor::create([
+        'market_id' => $otherMarket->id,
+        'business_name' => 'Dry Goods',
+        'contact_name' => 'Merilyn Boniel',
+        'permit_status' => PermitStatus::Active,
+    ]);
+    Stall::create([
+        'market_id' => $otherMarket->id,
+        'vendor_id' => $otherVendor->id,
+        'stall_number' => 'A-01',
+        'section' => 'DRY',
+        'status' => StallStatus::Occupied,
+        'monthly_rate' => 3000,
+    ]);
+
+    Livewire::actingAs($otherCollector)
+        ->test('pages::collector.collect')
+        ->set('formVendorId', $otherVendor->id)
+        ->set('formAmount', '3000')
+        ->set('formPaymentMethod', 'gcash')
+        ->set('formReferenceNumber', '654532334562')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $receipts = Collection::orderBy('id')->pluck('receipt_number', 'market_id');
+
+    expect(Collection::count())->toBe(2)
+        ->and($receipts[$this->market->id])->toBe($receipts[$otherMarket->id]);
+});

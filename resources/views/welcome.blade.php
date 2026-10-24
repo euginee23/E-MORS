@@ -364,7 +364,7 @@
             </section>
 
             <!-- Markets Section -->
-            @php $markets = \App\Models\Market::orderBy('name')->get(); @endphp
+            @php $markets = \App\Models\Market::openForVendors()->orderBy('name')->get(); @endphp
             @if($markets->isNotEmpty())
             <section id="markets" class="py-12 sm:py-20 bg-white dark:bg-zinc-900">
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

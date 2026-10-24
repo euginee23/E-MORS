@@ -29,6 +29,8 @@ new class extends Component {
 
     public function mount(Market $market): void
     {
+        abort_unless(Market::openForVendors()->whereKey($market->id)->exists(), 404);
+
         $this->market = $market;
     }
 
